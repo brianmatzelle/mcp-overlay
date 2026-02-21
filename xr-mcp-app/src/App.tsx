@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR, createXRStore, useXR } from '@react-three/xr'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
-import { Window } from './components/XRWindow.tsx'
+import { Window, type WindowAction } from './components/XRWindow.tsx'
 import { SubwayArrivals3D } from './components/SubwayArrivals3D.tsx'
 import { CitiBikeStatus3D } from './components/CitiBikeStatus3D.tsx'
+import { SportsSearch3D } from './components/SportsSearch3D.tsx'
+import { VideoPlayer3D } from './components/VideoPlayer3D.tsx'
 import { ChatWindow3D } from './components/ChatWindow3D.tsx'
 import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
 
@@ -21,15 +23,32 @@ function XRScene() {
   // Extract per-tool results
   const subwayText = voice.mcpToolResults['subway-arrivals']?.content?.[0]?.text ?? null
   const citibikeText = voice.mcpToolResults['citibike-status']?.content?.[0]?.text ?? null
+  const searchText = voice.mcpToolResults['search-streams']?.content?.[0]?.text ?? null
+  const streamData = voice.mcpToolResults['show-stream']?.content?.[0]?.text ?? null
+
+  // Parse stream URL from show-stream result
+  const streamUrl = useMemo(() => {
+    if (!streamData) return null
+    try {
+      const parsed = JSON.parse(streamData)
+      return parsed?.stream_url ?? null
+    } catch {
+      return null
+    }
+  }, [streamData])
 
   // Window visibility state
   const [chatVisible, setChatVisible] = useState(true)
   const [subwayVisible, setSubwayVisible] = useState(true)
   const [citibikeVisible, setCitibikeVisible] = useState(true)
+  const [sportsVisible, setSportsVisible] = useState(true)
+  const [videoVisible, setVideoVisible] = useState(true)
 
   // Re-show panels when new data arrives from voice
   const prevSubwayRef = useRef<string | null>(null)
   const prevCitibikeRef = useRef<string | null>(null)
+  const prevSearchRef = useRef<string | null>(null)
+  const prevStreamRef = useRef<string | null>(null)
   useEffect(() => {
     if (subwayText && subwayText !== prevSubwayRef.current) {
       setSubwayVisible(true)
@@ -42,6 +61,26 @@ function XRScene() {
     }
     prevCitibikeRef.current = citibikeText
   }, [citibikeText])
+  useEffect(() => {
+    if (searchText && searchText !== prevSearchRef.current) {
+      setSportsVisible(true)
+    }
+    prevSearchRef.current = searchText
+  }, [searchText])
+  useEffect(() => {
+    if (streamUrl && streamUrl !== prevStreamRef.current) {
+      setVideoVisible(true)
+    }
+    prevStreamRef.current = streamUrl
+  }, [streamUrl])
+
+  const muteAction: WindowAction[] = useMemo(() => [{
+    key: 'mute',
+    icon: voice.isMuted ? 'M' : 'U',
+    variant: voice.isMuted ? 'error' : 'success',
+    active: voice.isMuted,
+    onPress: voice.toggleMute,
+  }], [voice.isMuted, voice.toggleMute])
 
   return (
     <>
@@ -105,7 +144,41 @@ function XRScene() {
         </Window>
       )}
 
-      {/* Voice status indicator — draggable, not closeable */}
+      {/* Sports search results — shows when Garvis finds games */}
+      {searchText && sportsVisible && (
+        <Window
+          title="Live Sports"
+          width={0.4}
+          height={0.35}
+          config={{ distance: 0.6, horizontalOffset: -0.25, verticalOffset: 0.15, horizontalMode: 'visor' }}
+          draggable={true}
+          resizable={true}
+          storageKey="sports"
+          showClose={true}
+          onClose={() => setSportsVisible(false)}
+        >
+          <SportsSearch3D contentText={searchText} />
+        </Window>
+      )}
+
+      {/* Video player — shows when Garvis starts a stream */}
+      {streamUrl && videoVisible && (
+        <Window
+          title="Stream"
+          width={0.5}
+          height={0.32}
+          config={{ distance: 0.55, horizontalOffset: 0, verticalOffset: 0.05, horizontalMode: 'visor' }}
+          draggable={true}
+          resizable={true}
+          storageKey="video"
+          showClose={true}
+          onClose={() => setVideoVisible(false)}
+        >
+          <VideoPlayer3D url={streamUrl} width={0.45} />
+        </Window>
+      )}
+
+      {/* Voice status indicator — draggable, not closeable, with mute toggle */}
       <Window
         title="Status"
         width={0.06}
@@ -115,12 +188,14 @@ function XRScene() {
         resizable={false}
         storageKey="voice-indicator"
         showClose={false}
+        actions={muteAction}
       >
         <VoiceIndicator3D
           isConnected={voice.isConnected}
           isListening={voice.isListening}
           isSpeaking={voice.isSpeaking}
           isProcessing={voice.isProcessing}
+          isMuted={voice.isMuted}
         />
       </Window>
     </>

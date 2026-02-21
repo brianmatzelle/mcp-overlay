@@ -23,9 +23,11 @@ export interface VoiceAssistantState {
   isListening: boolean
   isSpeaking: boolean
   isProcessing: boolean
+  isMuted: boolean
   error: string | null
   messages: VoiceMessage[]
   mcpToolResults: Record<string, MCPToolResult>
+  toggleMute: () => void
 }
 
 export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantState {
@@ -39,6 +41,7 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<VoiceMessage[]>([])
+  const [isMuted, setIsMuted] = useState(false)
   const [mcpToolResults, setMcpToolResults] = useState<Record<string, MCPToolResult>>({})
 
   // Track current streaming messages by timestamp
@@ -178,13 +181,27 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
     }
   }, [enabled, createClient])
 
+  const toggleMute = useCallback(() => {
+    const client = clientRef.current
+    if (!client) return
+    if (client.isMuted()) {
+      client.unmute()
+      setIsMuted(false)
+    } else {
+      client.mute()
+      setIsMuted(true)
+    }
+  }, [])
+
   return {
     isConnected,
     isListening,
     isSpeaking,
     isProcessing,
+    isMuted,
     error,
     messages,
     mcpToolResults,
+    toggleMute,
   }
 }

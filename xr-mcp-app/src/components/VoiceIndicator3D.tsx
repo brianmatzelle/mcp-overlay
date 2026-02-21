@@ -13,10 +13,12 @@ interface VoiceIndicator3DProps {
   isListening: boolean
   isSpeaking: boolean
   isProcessing: boolean
+  isMuted?: boolean
 }
 
 function getIndicatorColor(props: VoiceIndicator3DProps): string {
   if (!props.isConnected) return colors.error.base
+  if (props.isMuted) return colors.warning.base
   if (props.isListening) return colors.success.base
   if (props.isProcessing) return '#facc15'
   if (props.isSpeaking) return colors.accent.secondary

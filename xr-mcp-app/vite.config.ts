@@ -17,6 +17,15 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/citibike-mcp/, '/mcp'),
       },
+      '/crackstreams-mcp': {
+        target: 'http://localhost:3003',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/crackstreams-mcp/, '/mcp'),
+      },
+      '/proxy': {
+        target: 'http://localhost:3003',
+        changeOrigin: true,
+      },
       '/ws/voice': {
         target: 'ws://localhost:8000',
         ws: true,

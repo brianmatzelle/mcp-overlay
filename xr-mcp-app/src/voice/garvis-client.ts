@@ -34,6 +34,9 @@ export class GarvisClient {
   private pendingUrls: string[] = []
   private isSpeaking: boolean = false
 
+  // Mute state — when true, PCM data is not sent to server
+  private _muted: boolean = false
+
   constructor(events: GarvisEvents = {}) {
     this.events = events
   }
@@ -158,6 +161,7 @@ export class GarvisClient {
 
       processor.onaudioprocess = (e) => {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+        if (this._muted) return
         const inputData = e.inputBuffer.getChannelData(0)
         const pcmData = this.floatTo16BitPCM(inputData)
         this.ws.send(pcmData.buffer)
@@ -265,6 +269,18 @@ export class GarvisClient {
       console.error('Audio play error:', e)
       this.playNextInQueue()
     })
+  }
+
+  mute(): void {
+    this._muted = true
+  }
+
+  unmute(): void {
+    this._muted = false
+  }
+
+  isMuted(): boolean {
+    return this._muted
   }
 
   sendControl(type: string, data: Record<string, unknown> = {}): void {
