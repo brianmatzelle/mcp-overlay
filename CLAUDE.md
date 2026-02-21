@@ -14,7 +14,7 @@ The subprojects below are building blocks toward this unified goal, each contrib
 
 Monorepo containing four subprojects, each with its own CLAUDE.md for project-specific details:
 
-- **`xr-mcp-app/`** — **[XR + MCP Integration]** The unified app. Renders MCP tool results as native 3D overlays in WebXR (Quest 3 AR). Browser mode shows HTML MCP App UIs via AppRenderer; XR mode renders the same data as Three.js 3D text panels that follow the camera. React + Three.js + @react-three/xr frontend, connects to MCP servers via lightweight browser client.
+- **`xr-mcp-app/`** — **[XR + MCP Integration]** The unified app. Renders MCP tool results as native 3D overlays in WebXR (Quest 3 AR), triggered exclusively by Garvis voice commands. Browser mode is a simple launcher (title + Enter AR button). React + Three.js + @react-three/xr frontend, voice connection to Garvis server.
 - **`garvis/`** — **[XR + Voice + Detection]** XR voice assistant for Meta Quest 3 / WebXR. Real-time bidirectional audio (Deepgram STT → Claude LLM → Eleven Labs TTS) over WebSocket, with YOLOv8 object detection and DeepFace face detection rendered as AR overlays. Python FastAPI + FastMCP backend, React + Three.js + WebXR frontend.
 - **`mcp-app-sandbox/`** — **[MCP App UI Rendering]** Browser-based MCP server interaction tool. Connect to any MCP server, execute tools, view MCP App UIs in sandboxed iframes, chat with Claude-powered agent. React + Vite frontend, Express backend.
 - **`manim-mcp/`** — **[Tool Patterns + Streaming]** AI math tutoring platform. Renders Manim animations from math expressions via MCP tools, streams Claude responses via SSE. Python FastAPI + FastMCP backend, Next.js 15 frontend, AWS infrastructure.
@@ -23,18 +23,18 @@ Monorepo containing four subprojects, each with its own CLAUDE.md for project-sp
 
 The integration app that composes capabilities from the other subprojects. Dual-mode rendering: browser (DOM) and XR (3D).
 
-### Dual-Mode Architecture
+### Architecture
 ```
-App.tsx (useMCPData for browser + useVoiceAssistant for XR)
-├── Browser mode: <MCPAppPanel />     (DOM — AppRenderer + iframe, auto-loads)
+App.tsx (useVoiceAssistant for XR)
+├── Browser mode: title + "Enter AR" button (launcher only, no auto-loading)
 └── Canvas > XR
       └── <XRScene />                 (3D — only renders in AR session)
             ├── <ChatWindow3D />        (conversation transcript, left side)
             ├── <VoiceIndicator3D />    (status sphere, bottom of FOV)
-            └── <XRWindow> + <SubwayArrivals3D />  (voice-triggered or auto-loaded, right side)
+            └── <XRWindow> + <SubwayArrivals3D />  (voice-triggered only, right side)
 ```
 
-Browser mode uses `useMCPData()` to auto-load subway data via direct MCP client. XR mode uses `useVoiceAssistant()` to connect to Garvis — user speaks, Claude calls MCP tools via the server-side bridge, and results render as 3D panels. Voice-triggered results take priority over auto-loaded data.
+MCP tool results only appear when triggered by voice through Garvis. User speaks in XR, Claude decides which MCP tools to call, and results render as 3D panels. No auto-loading — the app is voice-first.
 
 ### Voice-Triggered MCP Flow (XR Mode)
 ```
@@ -47,15 +47,13 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 ```
 
 ### Key Files
-- `xr-mcp-app/src/App.tsx` — Top-level: XR store, useMCPData (browser), useVoiceAssistant (XR), dual-panel layout
-- `xr-mcp-app/src/hooks/useMCPData.ts` — Browser hook: MCP client connect, callTool, returns toolResult + toolResultContent (JSON) + appHtml
+- `xr-mcp-app/src/App.tsx` — Top-level: XR store, useVoiceAssistant (XR), voice-only MCP panel layout
 - `xr-mcp-app/src/hooks/useVoiceAssistant.ts` — XR hook: bridges GarvisClient events → React state (messages, mcpToolResult, voice status)
 - `xr-mcp-app/src/voice/garvis-client.ts` — WebSocket voice client: mic capture, PCM streaming, TTS playback, MCP tool result handling
 - `xr-mcp-app/src/components/XRWindow.tsx` — Camera-following 3D window (visor mode). useFrame lerp/slerp positioning
 - `xr-mcp-app/src/components/SubwayArrivals3D.tsx` — Parses subway JSON → 3D text: station name, colored line circle, direction arrows, arrival times
 - `xr-mcp-app/src/components/ChatWindow3D.tsx` — 3D chat transcript with status bar, color-coded user/assistant messages
 - `xr-mcp-app/src/components/VoiceIndicator3D.tsx` — Floating status sphere (green/yellow/blue/gray/red) with pulse animation
-- `xr-mcp-app/src/MCPAppPanel.tsx` — Browser-mode wrapper: useMCPData props → AppRenderer
 - `xr-mcp-app/src/design-system.ts` — Garvis design tokens subset (colors, spacing, typography, radii, opacity, animation, zLayers) + createRoundedRectGeometry
 - `xr-mcp-app/src/mcp.ts` — Lightweight fetch-based MCP client (JSON-RPC 2.0, session management)
 
@@ -130,6 +128,11 @@ Python backends use FastMCP (`@mcp.tool()` decorator). In manim-mcp, `mcp.http_a
 - `manim-mcp/web-client/src/lib/mcp-client.ts` — MCPHTTPClient wrapper
 
 ## Quick Start Commands
+
+### All Services (from repo root)
+```bash
+./run.sh                       # Start MTA (3001) + Garvis (8000) + XR app (5174), Ctrl+C stops all
+```
 
 ### Garvis (from `garvis/`)
 ```bash

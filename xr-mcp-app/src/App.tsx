@@ -1,9 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import { XR, createXRStore, useXR } from '@react-three/xr'
-import { MCPAppPanel } from './MCPAppPanel.tsx'
-import { useMCPData } from './hooks/useMCPData.ts'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
-import { XRWindow } from './components/XRWindow.tsx'
+import { Window } from './components/XRWindow.tsx'
 import { SubwayArrivals3D } from './components/SubwayArrivals3D.tsx'
 import { ChatWindow3D } from './components/ChatWindow3D.tsx'
 import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
@@ -11,26 +9,29 @@ import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
 const xrStore = createXRStore()
 
 /** 3D scene rendered inside XR */
-function XRScene({ autoContent }: { autoContent: string | null }) {
+function XRScene() {
   // Detect XR session active
   const session = useXR((s) => s.session)
   const inXR = session != null
 
   const voice = useVoiceAssistant({ enabled: inXR })
 
-  // Voice-triggered result takes priority, fallback to auto-loaded data
-  const voiceContent = voice.mcpToolResult?.content?.[0]?.text ?? null
-  const contentText = voiceContent ?? autoContent
+  // Only show MCP tool results when Garvis triggers them via voice
+  const contentText = voice.mcpToolResult?.content?.[0]?.text ?? null
 
   return (
     <>
-      {/* Chat window — left side */}
-      <XRWindow
-        title="Garvis"
-        distance={0.6}
+      {/* Chat window — left side, draggable */}
+      <Window
+        title="Chat"
+        icon="💬"
         width={0.35}
         height={0.25}
-        horizontalOffset={-0.25}
+        config={{ distance: 0.6, horizontalOffset: -0.25, verticalOffset: -0.05, horizontalMode: 'visor' }}
+        draggable={true}
+        resizable={true}
+        storageKey="chat"
+        showClose={false}
       >
         <ChatWindow3D
           isConnected={voice.isConnected}
@@ -40,35 +41,48 @@ function XRScene({ autoContent }: { autoContent: string | null }) {
           error={voice.error}
           messages={voice.messages}
         />
-      </XRWindow>
+      </Window>
 
-      {/* Subway panel — right side, shows when data available */}
+      {/* Subway panel — right side, shows only when Garvis returns data */}
       {contentText && (
-        <XRWindow
+        <Window
           title="MTA Subway"
-          distance={0.6}
+          icon="🚇"
           width={0.4}
           height={0.35}
-          horizontalOffset={0.15}
+          config={{ distance: 0.6, horizontalOffset: 0.15, verticalOffset: -0.05, horizontalMode: 'visor' }}
+          draggable={true}
+          resizable={true}
+          storageKey="subway"
+          showClose={false}
         >
           <SubwayArrivals3D contentText={contentText} />
-        </XRWindow>
+        </Window>
       )}
 
-      {/* Voice status indicator */}
-      <VoiceIndicator3D
-        isConnected={voice.isConnected}
-        isListening={voice.isListening}
-        isSpeaking={voice.isSpeaking}
-        isProcessing={voice.isProcessing}
-      />
+      {/* Voice status indicator — draggable */}
+      <Window
+        title="Status"
+        width={0.06}
+        height={0.04}
+        config={{ distance: 0.5, horizontalOffset: 0, verticalOffset: -0.15, horizontalMode: 'visor' }}
+        draggable={true}
+        resizable={false}
+        storageKey="voice-indicator"
+        showClose={false}
+      >
+        <VoiceIndicator3D
+          isConnected={voice.isConnected}
+          isListening={voice.isListening}
+          isSpeaking={voice.isSpeaking}
+          isProcessing={voice.isProcessing}
+        />
+      </Window>
     </>
   )
 }
 
 function App() {
-  const mcpData = useMCPData()
-
   const handleEnterAR = async () => {
     try {
       await xrStore.enterAR()
@@ -91,39 +105,34 @@ function App() {
         padding: '2rem',
         maxWidth: '500px',
         margin: '0 auto',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
       }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem',
-        }}>
-          <h1 style={{ color: '#fff', fontSize: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
-            XR MCP App
-          </h1>
-          <button
-            onClick={handleEnterAR}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              background: '#667eea',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            Enter AR
-          </button>
-        </div>
-        <MCPAppPanel mcpData={mcpData} />
+        <h1 style={{ color: '#fff', fontSize: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
+          Garvis XR
+        </h1>
+        <button
+          onClick={handleEnterAR}
+          style={{
+            padding: '10px 20px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            background: '#667eea',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }}
+        >
+          Enter AR
+        </button>
       </div>
 
       {/* XR Canvas — behind browser UI, becomes immersive on Enter AR */}
       <Canvas style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
         <XR store={xrStore}>
-          <XRScene autoContent={mcpData.toolResultContent} />
+          <XRScene />
           <ambientLight intensity={0.5} />
         </XR>
       </Canvas>
