@@ -25,7 +25,7 @@ export interface VoiceAssistantState {
   isProcessing: boolean
   error: string | null
   messages: VoiceMessage[]
-  mcpToolResult: MCPToolResult | null
+  mcpToolResults: Record<string, MCPToolResult>
 }
 
 export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantState {
@@ -39,7 +39,7 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<VoiceMessage[]>([])
-  const [mcpToolResult, setMcpToolResult] = useState<MCPToolResult | null>(null)
+  const [mcpToolResults, setMcpToolResults] = useState<Record<string, MCPToolResult>>({})
 
   // Track current streaming messages by timestamp
   const currentUserTs = useRef<number | null>(null)
@@ -123,7 +123,7 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
         }
       },
       onMCPToolResult: (toolName, content) => {
-        setMcpToolResult({ toolName, content })
+        setMcpToolResults(prev => ({ ...prev, [toolName]: { toolName, content } }))
       },
     })
   }, [upsertMessage])
@@ -185,6 +185,6 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
     isProcessing,
     error,
     messages,
-    mcpToolResult,
+    mcpToolResults,
   }
 }

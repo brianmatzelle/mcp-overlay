@@ -4,6 +4,7 @@ import { XR, createXRStore, useXR } from '@react-three/xr'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
 import { Window } from './components/XRWindow.tsx'
 import { SubwayArrivals3D } from './components/SubwayArrivals3D.tsx'
+import { CitiBikeStatus3D } from './components/CitiBikeStatus3D.tsx'
 import { ChatWindow3D } from './components/ChatWindow3D.tsx'
 import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
 
@@ -17,21 +18,30 @@ function XRScene() {
 
   const voice = useVoiceAssistant({ enabled: inXR })
 
-  // Only show MCP tool results when Garvis triggers them via voice
-  const contentText = voice.mcpToolResult?.content?.[0]?.text ?? null
+  // Extract per-tool results
+  const subwayText = voice.mcpToolResults['subway-arrivals']?.content?.[0]?.text ?? null
+  const citibikeText = voice.mcpToolResults['citibike-status']?.content?.[0]?.text ?? null
 
   // Window visibility state
   const [chatVisible, setChatVisible] = useState(true)
   const [subwayVisible, setSubwayVisible] = useState(true)
+  const [citibikeVisible, setCitibikeVisible] = useState(true)
 
-  // Re-show subway panel when new data arrives from voice
-  const prevContentRef = useRef<string | null>(null)
+  // Re-show panels when new data arrives from voice
+  const prevSubwayRef = useRef<string | null>(null)
+  const prevCitibikeRef = useRef<string | null>(null)
   useEffect(() => {
-    if (contentText && contentText !== prevContentRef.current) {
+    if (subwayText && subwayText !== prevSubwayRef.current) {
       setSubwayVisible(true)
     }
-    prevContentRef.current = contentText
-  }, [contentText])
+    prevSubwayRef.current = subwayText
+  }, [subwayText])
+  useEffect(() => {
+    if (citibikeText && citibikeText !== prevCitibikeRef.current) {
+      setCitibikeVisible(true)
+    }
+    prevCitibikeRef.current = citibikeText
+  }, [citibikeText])
 
   return (
     <>
@@ -61,7 +71,7 @@ function XRScene() {
       )}
 
       {/* Subway panel — right side, shows only when Garvis returns data */}
-      {contentText && subwayVisible && (
+      {subwayText && subwayVisible && (
         <Window
           title="MTA Subway"
           icon="🚇"
@@ -74,7 +84,24 @@ function XRScene() {
           showClose={true}
           onClose={() => setSubwayVisible(false)}
         >
-          <SubwayArrivals3D contentText={contentText} />
+          <SubwayArrivals3D contentText={subwayText} />
+        </Window>
+      )}
+
+      {/* Citi Bike panel — shows only when Garvis returns data */}
+      {citibikeText && citibikeVisible && (
+        <Window
+          title="Citi Bike"
+          width={0.4}
+          height={0.35}
+          config={{ distance: 0.6, horizontalOffset: 0.3, verticalOffset: 0.05, horizontalMode: 'visor' }}
+          draggable={true}
+          resizable={true}
+          storageKey="citibike"
+          showClose={true}
+          onClose={() => setCitibikeVisible(false)}
+        >
+          <CitiBikeStatus3D contentText={citibikeText} />
         </Window>
       )}
 

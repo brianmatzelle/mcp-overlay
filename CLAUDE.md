@@ -31,7 +31,8 @@ App.tsx (useVoiceAssistant for XR)
       └── <XRScene />                 (3D — only renders in AR session)
             ├── <Window> + <ChatWindow3D />        (draggable, left side)
             ├── <Window> + <VoiceIndicator3D />    (draggable, bottom of FOV)
-            └── <Window> + <SubwayArrivals3D />    (draggable, voice-triggered, right side)
+            ├── <Window> + <SubwayArrivals3D />    (draggable, voice-triggered, right side)
+            └── <Window> + <CitiBikeStatus3D />    (draggable, voice-triggered)
 ```
 
 All XR panels are draggable, resizable `Window` components (ported from garvis `Window.tsx`). Users can grab the title bar to reposition any window in 3D space and use the resize handle to scale. Positions persist to localStorage. MCP tool results only appear when triggered by voice through Garvis — the app is voice-first.
@@ -40,18 +41,19 @@ All XR panels are draggable, resizable `Window` components (ported from garvis `
 ```
 User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 → Deepgram STT → Claude LLM (with MCP tools from bridge)
-→ Claude calls subway-arrivals → MCP Bridge → HTTP to MTA server (port 3001)
+→ Claude calls MCP tool → MCP Bridge → HTTP to MTA (port 3001) or Citibike (port 3002)
 → Tool result sent to client: {"type": "mcp_tool_result", "tool_name": "...", "content": [...]}
 → Claude generates spoken response → ElevenLabs TTS → MP3 audio to client
-→ Client renders: SubwayArrivals3D + ChatWindow3D + audio playback
+→ Client renders: SubwayArrivals3D / CitiBikeStatus3D + ChatWindow3D + audio playback
 ```
 
 ### Key Files
 - `xr-mcp-app/src/App.tsx` — Top-level: XR store, useVoiceAssistant (XR), voice-only MCP panel layout
-- `xr-mcp-app/src/hooks/useVoiceAssistant.ts` — XR hook: bridges GarvisClient events → React state (messages, mcpToolResult, voice status)
+- `xr-mcp-app/src/hooks/useVoiceAssistant.ts` — XR hook: bridges GarvisClient events → React state (messages, mcpToolResults map keyed by tool name, voice status)
 - `xr-mcp-app/src/voice/garvis-client.ts` — WebSocket voice client: mic capture, PCM streaming, TTS playback, MCP tool result handling
 - `xr-mcp-app/src/components/XRWindow.tsx` — Draggable, resizable 3D window container (ported from garvis `Window.tsx`). Drag via title bar pointer events, resize via bottom-right handle, camera-follow visor/yaw modes, localStorage persistence via `storageKey` prop
 - `xr-mcp-app/src/components/SubwayArrivals3D.tsx` — Parses subway JSON → 3D text: station name, colored line circle, direction arrows, arrival times
+- `xr-mcp-app/src/components/CitiBikeStatus3D.tsx` — Parses citibike JSON → 3D text: station name, classic/ebike counts (color-coded), docks, capacity bar, status badges
 - `xr-mcp-app/src/components/ChatWindow3D.tsx` — 3D chat transcript with status bar, color-coded user/assistant messages
 - `xr-mcp-app/src/components/VoiceIndicator3D.tsx` — Status sphere (green/yellow/blue/gray/red) with pulse animation. Camera-following handled by parent Window
 - `xr-mcp-app/src/design-system.ts` — Garvis design tokens (colors, spacing, typography, radii, opacity, animation, zLayers, windowDefaults) + `PointerEvent3D`/`HorizontalMode` types + `createRoundedRectGeometry`
@@ -60,6 +62,7 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 ### Design Decisions
 - **No XRDomOverlay**: Quest 3 silently ignores `dom-overlay` (it's a handheld AR feature). All XR UI must be Three.js 3D objects.
 - **Draggable windows**: `Window` component (ported from garvis `Window.tsx`) supports drag (title bar pointer events with `setPointerCapture`), resize (bottom-right handle, distance-based scaling 0.5x–2.0x), close button, and localStorage persistence. Camera-follow via `useFrame()` + `lerp`/`slerp` smoothing with visor (camera-locked HUD) and yaw (world-horizontal) modes. During drag, position updates instantly; when idle, lerps smoothly (0.15 factor).
+- **Multi-tool result state**: `useVoiceAssistant` stores `mcpToolResults` as a `Record<string, MCPToolResult>` keyed by tool name, so multiple MCP panels (subway, citibike, etc.) can coexist simultaneously. Each panel auto-shows when new data arrives and can be independently closed.
 - **Data-driven 3D rendering**: Instead of embedding HTML iframes in XR, we parse the MCP tool result `content[0].text` JSON and render it as `<Text>` and `<mesh>` primitives. This is pure WebGL and works reliably on Quest 3.
 - **Design tokens from Garvis**: `design-system.ts` inlines a minimal subset of `garvis/xr-client/src/design-system/tokens.ts` and `primitives.ts` to avoid cross-project imports.
 - **No React StrictMode**: Removed from `main.tsx` because StrictMode double-fires effects, which creates duplicate WebSocket connections to the voice server.
@@ -91,7 +94,7 @@ Server-side MCP client that connects to external MCP servers at startup, discove
 - `garvis/server/tools/mcp_client.py` — Python MCP client (httpx, JSON-RPC 2.0, session management)
 - `garvis/server/tools/mcp_bridge.py` — MCPBridge class: server registry, tool discovery, execution routing. Module-level singleton with `initialize_bridge()`/`shutdown_bridge()`
 - `garvis/server/tools/mcp_tools.py` — `get_claude_tools()` merges native FastMCP tools + MCP bridge tools
-- `garvis/server/config.py` — `MCP_SERVERS` list (defaults to MTA on `localhost:3001/mcp`), `CLAUDE_SYSTEM_PROMPT` references MCP tools
+- `garvis/server/config.py` — `MCP_SERVERS` list (MTA on `localhost:3001/mcp`, Citibike on `localhost:3002/mcp`), `CLAUDE_SYSTEM_PROMPT` references MCP tools
 - `garvis/server/main.py` — Bridge init in lifespan (after providers, before yield), shutdown on exit
 
 ### MCP App UI Rendering — from `mcp-app-sandbox/`
@@ -100,6 +103,8 @@ Server-side MCP client that connects to external MCP servers at startup, discove
 - `mcp-app-sandbox/public/sandbox_proxy.html` — Sandbox iframe proxy protocol
 - `mcp-app-sandbox/mta-subway/server.ts` — registerAppTool + registerAppResource pattern
 - `mcp-app-sandbox/mta-subway/src/mcp-app.ts` — MCP App lifecycle (ontoolresult, callServerTool)
+- `mcp-app-sandbox/citibike/server.ts` — Citibike MCP server: `citibike-status` (with UI) + `search-citibike` (model-only) tools
+- `mcp-app-sandbox/citibike/lib/gbfs-fetcher.ts` — GBFS API client: fetches station info + status from Citi Bike NYC, fuzzy station name matching
 
 ### Lightweight MCP Client (Browser) — from `mcp-app-sandbox/`
 Browser-side JSON-RPC 2.0 over fetch with session management via `mcp-session-id` header. No SDK dependency in browser, keeping bundle small.
@@ -131,7 +136,7 @@ Python backends use FastMCP (`@mcp.tool()` decorator). In manim-mcp, `mcp.http_a
 
 ### All Services (from repo root)
 ```bash
-./run.sh                       # Start MTA (3001) + Garvis (8000) + XR app (5174), Ctrl+C stops all
+./run.sh                       # Start MTA (3001) + Citibike (3002) + Garvis (8000) + XR app (5174), Ctrl+C stops all
 ```
 
 ### Garvis (from `garvis/`)
@@ -156,19 +161,20 @@ cd web-client && npm install && npm run dev          # Next.js dev (port 3000)
 npm run dev                    # Vite dev server (HTTPS, port 5174)
 npm run build                  # tsc -b && vite build
 npx tsc -b                     # Type check only
-# Requires: MTA MCP server on port 3001, Garvis server on port 8000 (for voice)
+# Requires: MTA MCP server on port 3001, Citibike MCP server on port 3002, Garvis server on port 8000 (for voice)
 ```
 
 ### MCP App Sandbox (from `mcp-app-sandbox/`)
 ```bash
 npm run dev                    # Vite (5180) + Express API (5181) concurrently
 npm run build                  # tsc && vite build
-cd mta-subway && npm run dev   # Example MCP server (port 3001)
+cd mta-subway && npm run dev   # MTA MCP server (port 3001)
+cd citibike && npm run dev     # Citibike MCP server (port 3002)
 ```
 
 ## Cross-Project Conventions
 
-**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies `/mcp` → MTA server (port 3001) and `/ws/voice` → Garvis server (port 8000) via Vite config.
+**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies `/mcp` → MTA server (port 3001), `/citibike-mcp` → Citibike server (port 3002), and `/ws/voice` → Garvis server (port 8000) via Vite config.
 
 **Tool result display markers:** Garvis uses `[DISPLAY_STREAM:url]` and Manim MCP uses `[DISPLAY_VIDEO:path]` — string patterns in tool results that frontends detect and render as media.
 

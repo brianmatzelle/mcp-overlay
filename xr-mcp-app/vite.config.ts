@@ -12,6 +12,11 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/citibike-mcp': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/citibike-mcp/, '/mcp'),
+      },
       '/ws/voice': {
         target: 'ws://localhost:8000',
         ws: true,
