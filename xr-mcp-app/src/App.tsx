@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR, createXRStore, useXR } from '@react-three/xr'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
@@ -19,32 +20,48 @@ function XRScene() {
   // Only show MCP tool results when Garvis triggers them via voice
   const contentText = voice.mcpToolResult?.content?.[0]?.text ?? null
 
+  // Window visibility state
+  const [chatVisible, setChatVisible] = useState(true)
+  const [subwayVisible, setSubwayVisible] = useState(true)
+
+  // Re-show subway panel when new data arrives from voice
+  const prevContentRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (contentText && contentText !== prevContentRef.current) {
+      setSubwayVisible(true)
+    }
+    prevContentRef.current = contentText
+  }, [contentText])
+
   return (
     <>
-      {/* Chat window — left side, draggable */}
-      <Window
-        title="Chat"
-        icon="💬"
-        width={0.35}
-        height={0.25}
-        config={{ distance: 0.6, horizontalOffset: -0.25, verticalOffset: -0.05, horizontalMode: 'visor' }}
-        draggable={true}
-        resizable={true}
-        storageKey="chat"
-        showClose={false}
-      >
-        <ChatWindow3D
-          isConnected={voice.isConnected}
-          isListening={voice.isListening}
-          isSpeaking={voice.isSpeaking}
-          isProcessing={voice.isProcessing}
-          error={voice.error}
-          messages={voice.messages}
-        />
-      </Window>
+      {/* Chat window — left side, draggable, closeable */}
+      {chatVisible && (
+        <Window
+          title="Chat"
+          icon="💬"
+          width={0.35}
+          height={0.25}
+          config={{ distance: 0.6, horizontalOffset: -0.25, verticalOffset: -0.05, horizontalMode: 'visor' }}
+          draggable={true}
+          resizable={true}
+          storageKey="chat"
+          showClose={true}
+          onClose={() => setChatVisible(false)}
+        >
+          <ChatWindow3D
+            isConnected={voice.isConnected}
+            isListening={voice.isListening}
+            isSpeaking={voice.isSpeaking}
+            isProcessing={voice.isProcessing}
+            error={voice.error}
+            messages={voice.messages}
+          />
+        </Window>
+      )}
 
       {/* Subway panel — right side, shows only when Garvis returns data */}
-      {contentText && (
+      {contentText && subwayVisible && (
         <Window
           title="MTA Subway"
           icon="🚇"
@@ -54,18 +71,19 @@ function XRScene() {
           draggable={true}
           resizable={true}
           storageKey="subway"
-          showClose={false}
+          showClose={true}
+          onClose={() => setSubwayVisible(false)}
         >
           <SubwayArrivals3D contentText={contentText} />
         </Window>
       )}
 
-      {/* Voice status indicator — draggable */}
+      {/* Voice status indicator — draggable, not closeable */}
       <Window
         title="Status"
         width={0.06}
         height={0.04}
-        config={{ distance: 0.5, horizontalOffset: 0, verticalOffset: -0.15, horizontalMode: 'visor' }}
+        config={{ distance: 0.5, horizontalOffset: 0, verticalOffset: -0.25, horizontalMode: 'visor' }}
         draggable={true}
         resizable={false}
         storageKey="voice-indicator"

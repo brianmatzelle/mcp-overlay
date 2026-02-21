@@ -29,12 +29,12 @@ App.tsx (useVoiceAssistant for XR)
 ├── Browser mode: title + "Enter AR" button (launcher only, no auto-loading)
 └── Canvas > XR
       └── <XRScene />                 (3D — only renders in AR session)
-            ├── <ChatWindow3D />        (conversation transcript, left side)
-            ├── <VoiceIndicator3D />    (status sphere, bottom of FOV)
-            └── <XRWindow> + <SubwayArrivals3D />  (voice-triggered only, right side)
+            ├── <Window> + <ChatWindow3D />        (draggable, left side)
+            ├── <Window> + <VoiceIndicator3D />    (draggable, bottom of FOV)
+            └── <Window> + <SubwayArrivals3D />    (draggable, voice-triggered, right side)
 ```
 
-MCP tool results only appear when triggered by voice through Garvis. User speaks in XR, Claude decides which MCP tools to call, and results render as 3D panels. No auto-loading — the app is voice-first.
+All XR panels are draggable, resizable `Window` components (ported from garvis `Window.tsx`). Users can grab the title bar to reposition any window in 3D space and use the resize handle to scale. Positions persist to localStorage. MCP tool results only appear when triggered by voice through Garvis — the app is voice-first.
 
 ### Voice-Triggered MCP Flow (XR Mode)
 ```
@@ -50,16 +50,16 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 - `xr-mcp-app/src/App.tsx` — Top-level: XR store, useVoiceAssistant (XR), voice-only MCP panel layout
 - `xr-mcp-app/src/hooks/useVoiceAssistant.ts` — XR hook: bridges GarvisClient events → React state (messages, mcpToolResult, voice status)
 - `xr-mcp-app/src/voice/garvis-client.ts` — WebSocket voice client: mic capture, PCM streaming, TTS playback, MCP tool result handling
-- `xr-mcp-app/src/components/XRWindow.tsx` — Camera-following 3D window (visor mode). useFrame lerp/slerp positioning
+- `xr-mcp-app/src/components/XRWindow.tsx` — Draggable, resizable 3D window container (ported from garvis `Window.tsx`). Drag via title bar pointer events, resize via bottom-right handle, camera-follow visor/yaw modes, localStorage persistence via `storageKey` prop
 - `xr-mcp-app/src/components/SubwayArrivals3D.tsx` — Parses subway JSON → 3D text: station name, colored line circle, direction arrows, arrival times
 - `xr-mcp-app/src/components/ChatWindow3D.tsx` — 3D chat transcript with status bar, color-coded user/assistant messages
-- `xr-mcp-app/src/components/VoiceIndicator3D.tsx` — Floating status sphere (green/yellow/blue/gray/red) with pulse animation
-- `xr-mcp-app/src/design-system.ts` — Garvis design tokens subset (colors, spacing, typography, radii, opacity, animation, zLayers) + createRoundedRectGeometry
+- `xr-mcp-app/src/components/VoiceIndicator3D.tsx` — Status sphere (green/yellow/blue/gray/red) with pulse animation. Camera-following handled by parent Window
+- `xr-mcp-app/src/design-system.ts` — Garvis design tokens (colors, spacing, typography, radii, opacity, animation, zLayers, windowDefaults) + `PointerEvent3D`/`HorizontalMode` types + `createRoundedRectGeometry`
 - `xr-mcp-app/src/mcp.ts` — Lightweight fetch-based MCP client (JSON-RPC 2.0, session management)
 
 ### Design Decisions
 - **No XRDomOverlay**: Quest 3 silently ignores `dom-overlay` (it's a handheld AR feature). All XR UI must be Three.js 3D objects.
-- **Camera-follow visor mode**: XRWindow positions content at fixed distance from camera using `useFrame()` + `lerp`/`slerp` smoothing (from Garvis `Window.tsx:374-432`).
+- **Draggable windows**: `Window` component (ported from garvis `Window.tsx`) supports drag (title bar pointer events with `setPointerCapture`), resize (bottom-right handle, distance-based scaling 0.5x–2.0x), close button, and localStorage persistence. Camera-follow via `useFrame()` + `lerp`/`slerp` smoothing with visor (camera-locked HUD) and yaw (world-horizontal) modes. During drag, position updates instantly; when idle, lerps smoothly (0.15 factor).
 - **Data-driven 3D rendering**: Instead of embedding HTML iframes in XR, we parse the MCP tool result `content[0].text` JSON and render it as `<Text>` and `<mesh>` primitives. This is pure WebGL and works reliably on Quest 3.
 - **Design tokens from Garvis**: `design-system.ts` inlines a minimal subset of `garvis/xr-client/src/design-system/tokens.ts` and `primitives.ts` to avoid cross-project imports.
 - **No React StrictMode**: Removed from `main.tsx` because StrictMode double-fires effects, which creates duplicate WebSocket connections to the voice server.
