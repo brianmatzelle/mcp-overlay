@@ -28,6 +28,8 @@ export interface VoiceAssistantState {
   messages: VoiceMessage[]
   mcpToolResults: Record<string, MCPToolResult>
   toggleMute: () => void
+  /** Exposed GarvisClient reference for sending control messages (e.g. camera frames) */
+  client: GarvisClient | null
 }
 
 export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantState {
@@ -203,5 +205,6 @@ export function useVoiceAssistant(opts: { enabled: boolean }): VoiceAssistantSta
     messages,
     mcpToolResults,
     toggleMute,
+    client: clientRef.current,
   }
 }

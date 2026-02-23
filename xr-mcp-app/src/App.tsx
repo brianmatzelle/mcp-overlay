@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR, createXRStore, useXR } from '@react-three/xr'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
+import { useXRCamera } from './hooks/useXRCamera.ts'
+import { useCameraFrameSender } from './hooks/useCameraFrameSender.ts'
 import { Window, type WindowAction } from './components/XRWindow.tsx'
 import { SubwayArrivals3D } from './components/SubwayArrivals3D.tsx'
 import { CitiBikeStatus3D } from './components/CitiBikeStatus3D.tsx'
@@ -9,6 +11,9 @@ import { SportsSearch3D } from './components/SportsSearch3D.tsx'
 import { VideoPlayer3D } from './components/VideoPlayer3D.tsx'
 import { ChatWindow3D } from './components/ChatWindow3D.tsx'
 import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
+import { ObjectAnnotations3D } from './components/ObjectAnnotations3D.tsx'
+import { useDetection } from './hooks/useDetection.ts'
+import { DetectionOverlay3D } from './components/DetectionOverlay3D.tsx'
 
 const xrStore = createXRStore()
 
@@ -20,11 +25,22 @@ function XRScene() {
 
   const voice = useVoiceAssistant({ enabled: inXR })
 
+  // Camera frame capture + streaming to Garvis server
+  const { state: cameraState, captureFrame } = useXRCamera()
+  useCameraFrameSender(captureFrame, voice.client, voice.isConnected, { fps: 1 })
+
+  // Live YOLO detection overlay (debug + visual feedback)
+  const detection = useDetection(captureFrame, cameraState.isStreaming, {
+    targetFps: 3,
+    confidence: 0.4,
+  })
+
   // Extract per-tool results
   const subwayText = voice.mcpToolResults['subway-arrivals']?.content?.[0]?.text ?? null
   const citibikeText = voice.mcpToolResults['citibike-status']?.content?.[0]?.text ?? null
   const searchText = voice.mcpToolResults['search-streams']?.content?.[0]?.text ?? null
   const streamData = voice.mcpToolResults['show-stream']?.content?.[0]?.text ?? null
+  const visionText = voice.mcpToolResults['research-visible-objects']?.content?.[0]?.text ?? null
 
   // Parse stream URL from show-stream result
   const streamUrl = useMemo(() => {
@@ -43,12 +59,20 @@ function XRScene() {
   const [citibikeVisible, setCitibikeVisible] = useState(true)
   const [sportsVisible, setSportsVisible] = useState(true)
   const [videoVisible, setVideoVisible] = useState(true)
+  const [visionVisible, setVisionVisible] = useState(true)
 
   // Re-show panels when new data arrives from voice
   const prevSubwayRef = useRef<string | null>(null)
   const prevCitibikeRef = useRef<string | null>(null)
   const prevSearchRef = useRef<string | null>(null)
+  const prevVisionRef = useRef<string | null>(null)
   const prevStreamRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (visionText && visionText !== prevVisionRef.current) {
+      setVisionVisible(true)
+    }
+    prevVisionRef.current = visionText
+  }, [visionText])
   useEffect(() => {
     if (subwayText && subwayText !== prevSubwayRef.current) {
       setSubwayVisible(true)
@@ -176,6 +200,19 @@ function XRScene() {
         >
           <VideoPlayer3D url={streamUrl} width={0.45} />
         </Window>
+      )}
+
+      {/* Live YOLO detection bounding boxes (debug overlay) */}
+      <DetectionOverlay3D
+        detections={detection.detections}
+        imageSize={detection.imageSize}
+        fps={detection.fps}
+        latency={detection.latency}
+      />
+
+      {/* Vision research annotations — spatially anchored to detected objects */}
+      {visionText && visionVisible && (
+        <ObjectAnnotations3D contentText={visionText} />
       )}
 
       {/* Voice status indicator — draggable, not closeable, with mute toggle */}

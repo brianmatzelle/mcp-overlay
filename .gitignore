@@ -1,4 +1,30 @@
 garvis/
 mcp-app-sandbox/
 manim-mcp/
+vision-explorer2/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Node
+node_modules/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Model weights
+*.pt
+*.onnx
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
