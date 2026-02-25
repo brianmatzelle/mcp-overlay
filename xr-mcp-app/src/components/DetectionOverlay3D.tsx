@@ -151,22 +151,36 @@ interface DetectionOverlay3DProps {
   imageSize: { width: number; height: number } | null
   fps: number
   latency: number
+  /** Projection matrix from Raw Camera Access (column-major 4x4) */
+  projectionMatrix?: Float32Array | null
+  /** Whether using Raw Camera Access or getUserMedia fallback */
+  isRawCameraAccess?: boolean
 }
 
-export function DetectionOverlay3D({ detections, imageSize, fps, latency }: DetectionOverlay3DProps) {
+export function DetectionOverlay3D({
+  detections, imageSize, fps, latency, projectionMatrix, isRawCameraAccess,
+}: DetectionOverlay3DProps) {
   const session = useXR((s) => s.session)
   const isPresenting = !!session
   const { camera } = useThree()
   const groupRef = useRef<THREE.Group>(null)
 
   const planeDimensions = useMemo(() => {
+    if (isRawCameraAccess && projectionMatrix && imageSize) {
+      // Compute exact plane dimensions from projection matrix intrinsics
+      const fx = projectionMatrix[0] // focal length X in NDC
+      const fy = projectionMatrix[5] // focal length Y in NDC
+      const distance = OVERLAY_CONFIG.distance
+      // At distance d, visible width = 2*d/fx, height = 2*d/fy
+      return { width: (2 * distance) / fx, height: (2 * distance) / fy }
+    }
     if (imageSize) {
       const aspectRatio = imageSize.width / imageSize.height
       const height = OVERLAY_CONFIG.planeHeight
       return { width: height * aspectRatio, height }
     }
     return { width: 0.27, height: 0.2 }
-  }, [imageSize])
+  }, [imageSize, isRawCameraAccess, projectionMatrix])
 
   useFrame(() => {
     if (!groupRef.current || !isPresenting) return
@@ -177,20 +191,32 @@ export function DetectionOverlay3D({ detections, imageSize, fps, latency }: Dete
     camera.getWorldQuaternion(cameraQuat)
 
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraQuat).normalize()
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraQuat).normalize()
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cameraQuat).normalize()
 
-    const position = cameraPosition
-      .clone()
-      .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
-      .add(right.multiplyScalar(OVERLAY_CONFIG.xOffset))
-      .add(up.multiplyScalar(OVERLAY_CONFIG.yOffset))
+    if (isRawCameraAccess && projectionMatrix) {
+      // Raw Camera Access: texture is aligned with XRView — no heuristic offsets needed
+      const position = cameraPosition.clone()
+        .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
 
-    groupRef.current.position.copy(position)
-    groupRef.current.quaternion.copy(cameraQuat)
+      groupRef.current.position.copy(position)
+      groupRef.current.quaternion.copy(cameraQuat)
+      groupRef.current.scale.setScalar(1)
+    } else {
+      // Fallback: use heuristic offsets for getUserMedia camera misalignment
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraQuat).normalize()
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cameraQuat).normalize()
 
-    const scale = OVERLAY_CONFIG.distance / OVERLAY_CONFIG.baseDistance
-    groupRef.current.scale.setScalar(scale)
+      const position = cameraPosition
+        .clone()
+        .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
+        .add(right.multiplyScalar(OVERLAY_CONFIG.xOffset))
+        .add(up.multiplyScalar(OVERLAY_CONFIG.yOffset))
+
+      groupRef.current.position.copy(position)
+      groupRef.current.quaternion.copy(cameraQuat)
+
+      const scale = OVERLAY_CONFIG.distance / OVERLAY_CONFIG.baseDistance
+      groupRef.current.scale.setScalar(scale)
+    }
   })
 
   if (!isPresenting || !imageSize || detections.length === 0) return null

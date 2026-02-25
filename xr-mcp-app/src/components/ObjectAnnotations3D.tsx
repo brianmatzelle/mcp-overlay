@@ -68,6 +68,10 @@ interface VisionResearchResult {
 interface ObjectAnnotations3DProps {
   /** Raw JSON string from tool result content[0].text */
   contentText: string | null
+  /** Projection matrix from Raw Camera Access (column-major 4x4) */
+  projectionMatrix?: Float32Array | null
+  /** Whether using Raw Camera Access or getUserMedia fallback */
+  isRawCameraAccess?: boolean
 }
 
 /** Convert pixel coords to plane coords (origin center, Y up) */
@@ -221,7 +225,9 @@ function ConnectorLine({
   )
 }
 
-export function ObjectAnnotations3D({ contentText }: ObjectAnnotations3DProps) {
+export function ObjectAnnotations3D({
+  contentText, projectionMatrix, isRawCameraAccess,
+}: ObjectAnnotations3DProps) {
   const session = useXR((s) => s.session)
   const isPresenting = !!session
   const { camera } = useThree()
@@ -237,17 +243,24 @@ export function ObjectAnnotations3D({ contentText }: ObjectAnnotations3DProps) {
     }
   }, [contentText])
 
-  // Calculate plane dimensions from image aspect ratio
+  // Calculate plane dimensions from image aspect ratio (or projection matrix)
   const planeDimensions = useMemo(() => {
+    if (isRawCameraAccess && projectionMatrix && data?.image_size) {
+      // Compute exact plane dimensions from projection matrix intrinsics
+      const fx = projectionMatrix[0]
+      const fy = projectionMatrix[5]
+      const distance = OVERLAY_CONFIG.distance
+      return { width: (2 * distance) / fx, height: (2 * distance) / fy }
+    }
     if (data?.image_size) {
       const aspectRatio = data.image_size.width / data.image_size.height
       const height = OVERLAY_CONFIG.planeHeight
       return { width: height * aspectRatio, height }
     }
     return { width: 0.27, height: 0.2 }
-  }, [data?.image_size])
+  }, [data?.image_size, isRawCameraAccess, projectionMatrix])
 
-  // Position overlay to follow head (same as XRCameraFeed)
+  // Position overlay to follow head
   useFrame(() => {
     if (!groupRef.current || !isPresenting) return
 
@@ -257,20 +270,32 @@ export function ObjectAnnotations3D({ contentText }: ObjectAnnotations3DProps) {
     camera.getWorldQuaternion(cameraQuat)
 
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraQuat).normalize()
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraQuat).normalize()
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cameraQuat).normalize()
 
-    const position = cameraPosition
-      .clone()
-      .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
-      .add(right.multiplyScalar(OVERLAY_CONFIG.xOffset))
-      .add(up.multiplyScalar(OVERLAY_CONFIG.yOffset))
+    if (isRawCameraAccess && projectionMatrix) {
+      // Raw Camera Access: texture is aligned with XRView — no heuristic offsets needed
+      const position = cameraPosition.clone()
+        .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
 
-    groupRef.current.position.copy(position)
-    groupRef.current.quaternion.copy(cameraQuat)
+      groupRef.current.position.copy(position)
+      groupRef.current.quaternion.copy(cameraQuat)
+      groupRef.current.scale.setScalar(1)
+    } else {
+      // Fallback: use heuristic offsets for getUserMedia camera misalignment
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraQuat).normalize()
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cameraQuat).normalize()
 
-    const scale = OVERLAY_CONFIG.distance / OVERLAY_CONFIG.baseDistance
-    groupRef.current.scale.setScalar(scale)
+      const position = cameraPosition
+        .clone()
+        .add(forward.multiplyScalar(OVERLAY_CONFIG.distance))
+        .add(right.multiplyScalar(OVERLAY_CONFIG.xOffset))
+        .add(up.multiplyScalar(OVERLAY_CONFIG.yOffset))
+
+      groupRef.current.position.copy(position)
+      groupRef.current.quaternion.copy(cameraQuat)
+
+      const scale = OVERLAY_CONFIG.distance / OVERLAY_CONFIG.baseDistance
+      groupRef.current.scale.setScalar(scale)
+    }
   })
 
   if (!isPresenting || !data || !data.success || data.objects.length === 0) return null

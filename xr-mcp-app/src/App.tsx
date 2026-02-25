@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR, createXRStore, useXR } from '@react-three/xr'
 import { useVoiceAssistant } from './hooks/useVoiceAssistant.ts'
-import { useXRCamera } from './hooks/useXRCamera.ts'
+import { useXRCamera, preAcquireCamera } from './hooks/useXRCamera.ts'
 import { useCameraFrameSender } from './hooks/useCameraFrameSender.ts'
 import { Window, type WindowAction } from './components/XRWindow.tsx'
 import { SubwayArrivals3D } from './components/SubwayArrivals3D.tsx'
@@ -15,7 +15,21 @@ import { ObjectAnnotations3D } from './components/ObjectAnnotations3D.tsx'
 import { useDetection } from './hooks/useDetection.ts'
 import { DetectionOverlay3D } from './components/DetectionOverlay3D.tsx'
 
-const xrStore = createXRStore()
+const xrStore = createXRStore({
+  customSessionInit: {
+    requiredFeatures: ['local-floor'],
+    optionalFeatures: [
+      'camera-access',
+      'anchors',
+      'hand-tracking',
+      'layers',
+      'mesh-detection',
+      'plane-detection',
+      'dom-overlay',
+      'hit-test',
+    ],
+  },
+})
 
 /** 3D scene rendered inside XR */
 function XRScene() {
@@ -208,11 +222,17 @@ function XRScene() {
         imageSize={detection.imageSize}
         fps={detection.fps}
         latency={detection.latency}
+        projectionMatrix={cameraState.projectionMatrix}
+        isRawCameraAccess={cameraState.isRawCameraAccess}
       />
 
       {/* Vision research annotations — spatially anchored to detected objects */}
       {visionText && visionVisible && (
-        <ObjectAnnotations3D contentText={visionText} />
+        <ObjectAnnotations3D
+          contentText={visionText}
+          projectionMatrix={cameraState.projectionMatrix}
+          isRawCameraAccess={cameraState.isRawCameraAccess}
+        />
       )}
 
       {/* Voice status indicator — draggable, not closeable, with mute toggle */}
@@ -242,6 +262,15 @@ function XRScene() {
 function App() {
   const handleEnterAR = async () => {
     try {
+      // Subscribe to xrStore to catch the exact moment the session is created.
+      // Quest browser only allows passthrough camera access DURING session init
+      // (same timing as Babylon's onXRSessionInit). Before or after = front camera only.
+      const unsub = xrStore.subscribe((state) => {
+        if (state.session) {
+          preAcquireCamera()
+          unsub()
+        }
+      })
       await xrStore.enterAR()
     } catch (error) {
       console.error('Failed to enter AR:', error)

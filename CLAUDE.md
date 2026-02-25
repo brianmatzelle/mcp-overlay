@@ -12,11 +12,13 @@ The subprojects below are building blocks toward this unified goal, each contrib
 
 ## Repository Overview
 
-Monorepo containing four subprojects, each with its own CLAUDE.md for project-specific details:
+Monorepo containing six subprojects, each with its own CLAUDE.md for project-specific details:
 
 - **`xr-mcp-app/`** — **[XR + MCP Integration]** The unified app. Renders MCP tool results as native 3D overlays in WebXR (Quest 3 AR), triggered exclusively by Garvis voice commands. Browser mode is a simple launcher (title + Enter AR button). React + Three.js + @react-three/xr frontend, voice connection to Garvis server.
 - **`garvis/`** — **[XR + Voice + Detection]** XR voice assistant for Meta Quest 3 / WebXR. Real-time bidirectional audio (Deepgram STT → Claude LLM → Eleven Labs TTS) over WebSocket, with YOLOv8 object detection and DeepFace face detection rendered as AR overlays. Python FastAPI + FastMCP backend, React + Three.js + WebXR frontend.
-- **`mcp-app-sandbox/`** — **[MCP App UI Rendering]** Browser-based MCP server interaction tool. Connect to any MCP server, execute tools, view MCP App UIs in sandboxed iframes, chat with Claude-powered agent. React + Vite frontend, Express backend.
+- **`mcp-app-sandbox/`** — **[MCP App UI Rendering]** Browser-based MCP server interaction tool. Connect to any MCP server, execute tools, view MCP App UIs in sandboxed iframes, chat with Claude-powered agent. Also hosts MCP servers: `mta-subway/` (port 3001), `citibike/` (port 3002), `crackstreams/` (port 3003). React + Vite frontend, Express backend.
+- **`vision-research-server/`** — **[Vision + MCP Tool]** FastMCP server providing `research-visible-objects` tool. YOLOv8 object detection + Claude Vision enrichment in parallel. Returns JSON with detection coords, class, identification, and enrichment. Python FastAPI + FastMCP backend (port 3004).
+- **`vision-explorer2/`** — **[Standalone Vision App]** Real-time object detection web app. Client-side YOLO v8 inference via ONNX Runtime Web, with Claude Vision enrichment over WebSocket. React + Zustand + Tailwind frontend (pnpm), FastAPI backend. Standalone — not integrated into `run.sh`.
 - **`manim-mcp/`** — **[Tool Patterns + Streaming]** AI math tutoring platform. Renders Manim animations from math expressions via MCP tools, streams Claude responses via SSE. Python FastAPI + FastMCP backend, Next.js 15 frontend, AWS infrastructure.
 
 ## XR MCP App Architecture — `xr-mcp-app/`
@@ -70,73 +72,30 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 
 ## Building Blocks for Unified Vision
 
-How each subproject contributes to the goal of AR-overlaid MCP App UIs:
+How each subproject contributes to the goal of AR-overlaid MCP App UIs. See each subproject's own CLAUDE.md for detailed file references and conventions.
 
-### WebXR Rendering Pipeline — from `garvis/`
-AR passthrough with React Three Fiber + `@react-three/xr`. `createXRStore()` configures the XR session. Camera-relative overlay positioning at configurable distance/offset. `pixelToPlane()` maps 2D detection coordinates to 3D-space planes with labels.
-- `garvis/xr-client/src/App.tsx` — XR store creation, scene graph root
-- `garvis/xr-client/src/components/XRCameraFeed.tsx` — Camera feed, bounding box overlays, pixelToPlane coordinate math
-
-### Object Detection — from `garvis/`
-Client captures frames at configurable FPS, sends base64 JPEG to server. YOLOv8 detects 80 COCO classes; DeepFace detects faces. Results rendered as 3D bounding boxes with labels and confidence scores.
-- `garvis/server/tools/vision/detect.py` — YOLOv8 object detection endpoint
-- `garvis/server/tools/vision/face_detect.py` — DeepFace face detection endpoint
-- `garvis/xr-client/src/hooks/useDetection.ts` — Client-side detection loop and state
-- `garvis/xr-client/src/hooks/useFaceDetection.ts` — Client-side face detection loop
-
-### Voice Pipeline — from `garvis/`
-Real-time STT → LLM → TTS loop over WebSocket. Deepgram STT with VAD for speech-end detection, Claude LLM with tool calling, Eleven Labs TTS streaming MP3. Binary frames for audio, JSON frames for control.
-- `garvis/server/voice/pipeline.py` — Core pipeline orchestration. MCP tool routing via bridge, sends `mcp_tool_result` WebSocket messages for renderable tools. `_processing` guard prevents duplicate speech-end handling.
-- `garvis/xr-client/src/voice/garvis-client.ts` — WebSocket client, mic capture, TTS playback
-
-### MCP Bridge — from `garvis/`
-Server-side MCP client that connects to external MCP servers at startup, discovers their tools, and makes them available to Claude alongside native Garvis tools. When Claude calls an MCP tool, the bridge routes execution to the correct server via HTTP JSON-RPC 2.0.
-- `garvis/server/tools/mcp_client.py` — Python MCP client (httpx, JSON-RPC 2.0, session management)
-- `garvis/server/tools/mcp_bridge.py` — MCPBridge class: server registry, tool discovery, execution routing. Module-level singleton with `initialize_bridge()`/`shutdown_bridge()`
-- `garvis/server/tools/mcp_tools.py` — `get_claude_tools()` merges native FastMCP tools + MCP bridge tools
-- `garvis/server/config.py` — `MCP_SERVERS` list (MTA on `localhost:3001/mcp`, Citibike on `localhost:3002/mcp`), `CLAUDE_SYSTEM_PROMPT` references MCP tools
-- `garvis/server/main.py` — Bridge init in lifespan (after providers, before yield), shutdown on exit
-
-### MCP App UI Rendering — from `mcp-app-sandbox/`
-`AppRenderer` component from `@mcp-ui/client` renders HTML apps in double-iframe sandbox. Apps can call tools and read resources back through the host via postMessage relay. `registerAppTool()` pattern returns `structuredContent.resource.uri` pointing to bundled HTML.
-- `mcp-app-sandbox/src/App.tsx` — AppRenderer integration, tool execution flow
-- `mcp-app-sandbox/public/sandbox_proxy.html` — Sandbox iframe proxy protocol
-- `mcp-app-sandbox/mta-subway/server.ts` — registerAppTool + registerAppResource pattern
-- `mcp-app-sandbox/mta-subway/src/mcp-app.ts` — MCP App lifecycle (ontoolresult, callServerTool)
-- `mcp-app-sandbox/citibike/server.ts` — Citibike MCP server: `citibike-status` (with UI) + `search-citibike` (model-only) tools
-- `mcp-app-sandbox/citibike/lib/gbfs-fetcher.ts` — GBFS API client: fetches station info + status from Citi Bike NYC, fuzzy station name matching
-
-### Lightweight MCP Client (Browser) — from `mcp-app-sandbox/`
-Browser-side JSON-RPC 2.0 over fetch with session management via `mcp-session-id` header. No SDK dependency in browser, keeping bundle small.
-- `mcp-app-sandbox/src/mcp.ts` — Full client implementation
-
-### Agentic Tool Loop — from `mcp-app-sandbox/` + `manim-mcp/`
-Backend agent loop: Claude API + MCP tool execution with SSE streaming. Detects `structuredContent.resource.uri` to fetch HTML for MCP App rendering.
-- `mcp-app-sandbox/server/api.ts` — Express agentic loop (up to 10 turns)
-- `manim-mcp/web-client/src/app/api/chat/route.ts` — Next.js SSE streaming chat route (up to 100 iterations)
-
-### Tool Registry Pattern — from `manim-mcp/`
-`BaseVisualizationTool`/`BaseUtilityTool` with `ToolMetadata` (name, description, category, use_cases, examples, related_tools). Singleton registry with `register_all_with_mcp()` for bulk registration.
-- `manim-mcp/server/tools/base.py` — Base tool classes and metadata schema
-- `manim-mcp/server/tools/__init__.py` — Registry and registration
-
-### Client ECS State — from `garvis/`
-Koota entity-component-system for global client state. Traits: ChatHistory, VoiceState, ActiveVideo, VisorConfig. Extensible for adding new state like detected objects and active annotation overlays.
-- `garvis/xr-client/src/ecs/traits.ts` — Trait definitions
-- `garvis/xr-client/src/ecs/actions.ts` — State mutation actions
+- **WebXR Rendering** (`garvis/`): AR passthrough with React Three Fiber + `@react-three/xr`. `pixelToPlane()` maps 2D detection coordinates to 3D-space overlays.
+- **Object Detection** (`garvis/`): Client captures frames → base64 JPEG → server. YOLOv8 (80 COCO classes) + DeepFace faces → 3D bounding boxes with labels.
+- **Voice Pipeline** (`garvis/`): Real-time STT → LLM → TTS over WebSocket. Deepgram STT with VAD, Claude with tool calling, ElevenLabs TTS. Binary frames = audio, JSON frames = control.
+- **MCP Bridge** (`garvis/`): Server-side client connects to external MCP servers at startup, discovers tools, routes Claude tool calls via HTTP JSON-RPC 2.0. Configured in `garvis/server/config.py`.
+- **Vision Research** (`vision-research-server/`): `research-visible-objects` MCP tool — YOLOv8 detection + Claude Vision enrichment in parallel. Garvis auto-injects latest camera frame.
+- **Live Sports Streaming** (`mcp-app-sandbox/crackstreams/`): `search-streams` and `show-stream` tools. Provider registry pattern, HLS proxy with CDN selection.
+- **MCP App UI Rendering** (`mcp-app-sandbox/`): `AppRenderer` from `@mcp-ui/client` renders HTML apps in double-iframe sandbox. `registerAppTool()` returns `structuredContent.resource.uri` pointing to bundled HTML.
+- **Agentic Tool Loop** (`mcp-app-sandbox/` + `manim-mcp/`): Backend Claude API + MCP tool execution with SSE streaming. Up to 10 turns (sandbox) or 100 (manim).
+- **Client ECS State** (`garvis/`): Koota entity-component-system. Traits: ChatHistory, VoiceState, ActiveVideo, VisorConfig.
 
 ### MCP Server Integration Patterns
-Python backends use FastMCP (`@mcp.tool()` decorator). In manim-mcp, `mcp.http_app(path="/math")` is mounted on FastAPI at `/mcp`. JS/TS clients use `@modelcontextprotocol/sdk` with `StreamableHTTPClientTransport`. Garvis server acts as both an MCP server (native tools) and MCP client (bridge to external servers like MTA).
-- `garvis/server/tools/mcp_tools.py` — FastMCP tool definitions (SEARCH_CONTENT, SHOW_CONTENT) + bridge tool merging
-- `garvis/server/tools/mcp_bridge.py` — Python MCP client bridge (connects to external MCP servers at startup)
-- `manim-mcp/server/server.py` — FastMCP + FastAPI mount pattern
-- `manim-mcp/web-client/src/lib/mcp-client.ts` — MCPHTTPClient wrapper
+- **Python**: FastMCP (`@mcp.tool()`) with `mcp.http_app()` mounted on FastAPI at `/mcp`. Used by garvis, vision-research-server, crackstreams, manim-mcp.
+- **JS/TS**: `@modelcontextprotocol/sdk` `McpServer` + `StreamableHTTPServerTransport`. Used by mta-subway, citibike.
+- **Browser clients**: Lightweight JSON-RPC 2.0 over fetch with `mcp-session-id` header (no SDK dependency). See `mcp-app-sandbox/src/mcp.ts` and `xr-mcp-app/src/mcp.ts`.
+- **Garvis** acts as both MCP server (native tools) and MCP client (bridge to 4 external servers).
 
 ## Quick Start Commands
 
 ### All Services (from repo root)
 ```bash
-./run.sh                       # Start MTA (3001) + Citibike (3002) + Garvis (8000) + XR app (5174), Ctrl+C stops all
+./run.sh                       # Start all 6 services, Ctrl+C stops all
+# MTA (3001) + Citibike (3002) + CrackStreams (3003) + Vision Research (3004) + Garvis (8000) + XR app (5174)
 ```
 
 ### Garvis (from `garvis/`)
@@ -170,21 +129,122 @@ npm run dev                    # Vite (5180) + Express API (5181) concurrently
 npm run build                  # tsc && vite build
 cd mta-subway && npm run dev   # MTA MCP server (port 3001)
 cd citibike && npm run dev     # Citibike MCP server (port 3002)
+cd crackstreams && uv run uvicorn main:app --host 0.0.0.0 --port 3003 --reload  # CrackStreams MCP server
+```
+
+### Vision Research Server (from `vision-research-server/`)
+```bash
+uv sync && uv run uvicorn server:app --host 0.0.0.0 --port 3004 --reload
+```
+
+### Vision Explorer 2 (from `vision-explorer2/`, standalone)
+```bash
+cd frontend && pnpm install && pnpm dev    # Port 5173
+cd backend && pip install -r requirements.txt && uvicorn main:app --reload --port 8000
+# Note: backend port 8000 conflicts with Garvis — cannot run simultaneously
 ```
 
 ## Cross-Project Conventions
 
-**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies `/mcp` → MTA server (port 3001), `/citibike-mcp` → Citibike server (port 3002), and `/ws/voice` → Garvis server (port 8000) via Vite config.
+**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies via Vite config: `/mcp` → MTA (3001), `/citibike-mcp` → Citibike (3002), `/crackstreams-mcp` → CrackStreams (3003), `/proxy` → CrackStreams HLS proxy (3003), `/ws/voice` + `/detect` → Garvis (8000).
+
+**Port allocations:**
+| Port | Service |
+|------|---------|
+| 3001 | MTA Subway MCP server |
+| 3002 | Citibike MCP server |
+| 3003 | CrackStreams MCP server |
+| 3004 | Vision Research MCP server |
+| 5173 | Garvis xr-client / vision-explorer2 frontend |
+| 5174 | xr-mcp-app (HTTPS) |
+| 5180 | mcp-app-sandbox frontend |
+| 5181 | mcp-app-sandbox Express API |
+| 8000 | Garvis server / vision-explorer2 backend (conflict — pick one) |
 
 **Tool result display markers:** Garvis uses `[DISPLAY_STREAM:url]` and Manim MCP uses `[DISPLAY_VIDEO:path]` — string patterns in tool results that frontends detect and render as media.
 
 **Streaming protocols:** Garvis uses WebSocket (binary PCM audio frames + JSON control messages). Manim MCP and MCP App Sandbox use SSE with shared event types (`text_delta`, `tool_use_start`, `tool_execution_complete`, `complete`, `error`).
 
-**Python projects** use `uv` for dependency management (Python 3.11–3.13 for Garvis, 3.12+ for Manim MCP). **Node.js projects** use npm.
+**Python projects** use `uv` for dependency management (Python 3.11–3.13 for Garvis, 3.12+ for Manim MCP). **Node.js projects** use npm, except vision-explorer2 which uses pnpm.
+
+## Testing & Linting
+
+| Project | Tests | Lint/Format |
+|---------|-------|-------------|
+| garvis/server | `uv run pytest` | — |
+| garvis/xr-client | — | `npm run lint` (ESLint) |
+| manim-mcp/server | `uv run pytest` (or `uv run pytest -k test_name`) | `uv run ruff check .` + `uv run black .` |
+| manim-mcp/web-client | — | `npm run lint` (ESLint) |
+| vision-explorer2/frontend | `pnpm vitest run` | `pnpm lint` + `pnpm tsc --noEmit` |
+| vision-explorer2/backend | `python -m pytest tests/ -x` | `ruff check .` |
+| xr-mcp-app | — | `npx tsc -b` (type check only) |
+| mcp-app-sandbox | — (none configured) | — (none configured) |
+| vision-research-server | — | — |
 
 ## Environment Variables
 
 Each project requires its own `.env` file (gitignored). Key vars:
-- `ANTHROPIC_API_KEY` — Required by all three projects
+- `ANTHROPIC_API_KEY` — Required by Garvis, Manim MCP, MCP App Sandbox, Vision Research, and Vision Explorer 2
 - `DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY` — Garvis only
 - Auth0, AWS, S3 vars — Manim MCP only (see `manim-mcp/server/.env` and `manim-mcp/web-client/.env.local.example`)
+
+## Known Gotchas
+
+- **Python version constraints**: Garvis requires 3.11–3.13 (TensorFlow doesn't support 3.14). Vision-research-server supports 3.11–3.14. Manim MCP requires 3.12+. Use `uv python pin 3.13` if you hit TensorFlow errors.
+- **Port 8000 conflict**: Garvis server and vision-explorer2 backend both default to port 8000 — cannot run simultaneously. `./run.sh` excludes vision-explorer2.
+- **HTTPS required for getUserMedia**: WebXR mic/camera access requires HTTPS. localhost is exempt. xr-mcp-app Vite config handles HTTPS for dev.
+- **Quest 3 ignores dom-overlay**: `dom-overlay` is a handheld AR feature. All XR UI must be Three.js 3D objects — no HTML overlays in immersive mode.
+- **No React StrictMode**: Removed from xr-mcp-app because StrictMode double-fires effects, creating duplicate WebSocket connections.
+- **YOLO model path** (vision-explorer2): ONNX model files must be in `public/models/`, not `src/` — Vite doesn't bundle them.
+- **Vision LLM JSON parsing**: Claude Vision sometimes wraps JSON responses in markdown code fences — strip before parsing.
+- **Deepgram STT normalization**: Server normalizes "Jarvis"/"Travis" → "Garvis" in transcriptions.
+- **First detection request is slow**: YOLOv8 and DeepFace models download on first use.
+- **vision-explorer2 uses pnpm** (not npm like other Node.js projects in this repo).
+- **WebXR Raw Camera Access** (`camera-access` feature) is NOT yet available on Quest browser as of v85. The session rejects it with `Feature 'camera-access' is not supported for mode: immersive-ar`. The `useXRCamera` hook auto-falls back to getUserMedia. Code is ready for when Meta ships it.
+
+## Remote Debugging Quest 3 Browser
+
+Read JavaScript console logs from the Quest 3 browser directly via ADB + Chrome DevTools Protocol. Requires the Quest to be plugged in via USB.
+
+### Setup
+```bash
+adb devices                                          # Verify Quest is connected
+adb forward tcp:9222 localabstract:chrome_devtools_remote  # Forward DevTools port
+curl -s http://localhost:9222/json | python3 -m json.tool   # List open tabs (find page ID)
+```
+
+### Read console logs (Node.js)
+Requires `ws` package (`npm install ws` in /tmp or globally). Replace `PAGE_ID` with the `id` from the tab listing above.
+```bash
+NODE_PATH=/tmp/node_modules node -e "
+const WebSocket = require('ws');
+const ws = new WebSocket('ws://localhost:9222/devtools/page/PAGE_ID', { perMessageDeflate: false });
+ws.on('open', () => {
+  ws.send(JSON.stringify({id: 1, method: 'Runtime.enable'}));
+  ws.send(JSON.stringify({id: 2, method: 'Log.enable'}));
+  setTimeout(() => { ws.close(); process.exit(0); }, 10000);  // Collect for 10s
+});
+ws.on('message', (raw) => {
+  const msg = JSON.parse(raw.toString());
+  if (msg.method === 'Runtime.consoleAPICalled') {
+    const args = msg.params.args.map(a => a.value ?? a.description ?? String(a.type)).join(' ');
+    console.log('[CONSOLE.' + msg.params.type + ']', args);
+  } else if (msg.method === 'Log.entryAdded') {
+    console.log('[LOG]', msg.params.entry.level, msg.params.entry.text);
+  }
+});
+ws.on('error', (e) => console.error('WS error:', e.message));
+"
+```
+
+### Execute JS on Quest browser remotely
+```bash
+# Evaluate any expression in the page context:
+ws.send(JSON.stringify({ id: 99, method: 'Runtime.evaluate', params: { expression: 'document.title' } }));
+```
+
+### Key details
+- `Runtime.enable` captures `console.log/warn/error` → `Runtime.consoleAPICalled` events
+- `Log.enable` captures browser-level warnings (like unsupported WebXR features) → `Log.entryAdded` events
+- Page IDs can change when the tab reloads — re-query `/json` if connection fails with 500
+- Only captures logs emitted **after** connecting; historical logs are not available
