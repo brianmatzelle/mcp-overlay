@@ -72,6 +72,8 @@ interface ObjectAnnotations3DProps {
   projectionMatrix?: Float32Array | null
   /** Whether using Raw Camera Access or getUserMedia fallback */
   isRawCameraAccess?: boolean
+  /** Fixed world-space anchor position (overrides camera-follow) */
+  worldPosition?: THREE.Vector3
 }
 
 /** Convert pixel coords to plane coords (origin center, Y up) */
@@ -226,7 +228,7 @@ function ConnectorLine({
 }
 
 export function ObjectAnnotations3D({
-  contentText, projectionMatrix, isRawCameraAccess,
+  contentText, projectionMatrix, isRawCameraAccess, worldPosition,
 }: ObjectAnnotations3DProps) {
   const session = useXR((s) => s.session)
   const isPresenting = !!session
@@ -260,13 +262,23 @@ export function ObjectAnnotations3D({
     return { width: 0.27, height: 0.2 }
   }, [data?.image_size, isRawCameraAccess, projectionMatrix])
 
-  // Position overlay to follow head
+  // Position overlay: world-anchored or camera-follow
   useFrame(() => {
     if (!groupRef.current || !isPresenting) return
 
     const cameraPosition = new THREE.Vector3()
-    const cameraQuat = new THREE.Quaternion()
     camera.getWorldPosition(cameraPosition)
+
+    if (worldPosition) {
+      // Gaze-anchored: fixed world position, billboard toward camera
+      groupRef.current.position.lerp(worldPosition, 0.15)
+      groupRef.current.lookAt(cameraPosition)
+      groupRef.current.scale.setScalar(1)
+      return
+    }
+
+    // Camera-follow modes (existing behavior)
+    const cameraQuat = new THREE.Quaternion()
     camera.getWorldQuaternion(cameraQuat)
 
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraQuat).normalize()

@@ -116,6 +116,8 @@ export interface WindowProps {
   bgOpacity?: number
   /** localStorage key for persisting position/scale (omit to disable) */
   storageKey?: string
+  /** Fixed world-space position (overrides visor/yaw camera-follow) */
+  worldPosition?: THREE.Vector3
   /** Content to render inside the window */
   children: ReactNode
 }
@@ -231,6 +233,7 @@ export function Window({
   initialScale = 1.0,
   bgOpacity: bgOpacityProp = opacity.solid,
   storageKey,
+  worldPosition,
   children,
 }: WindowProps) {
   const { camera } = useThree()
@@ -369,10 +372,35 @@ export function Window({
     if (!groupRef.current) return
 
     const cameraPos = new THREE.Vector3()
+    camera.getWorldPosition(cameraPos)
+
+    // World-anchored mode: fixed position, billboard toward camera
+    if (worldPosition) {
+      const targetPos = worldPosition.clone().add(positionOffset)
+
+      if (isDragging) {
+        groupRef.current.position.copy(targetPos)
+      } else {
+        groupRef.current.position.lerp(targetPos, animation.lerpFactor)
+      }
+
+      // Billboard: always face the user
+      groupRef.current.lookAt(cameraPos)
+
+      // Apply scale
+      if (isResizing) {
+        groupRef.current.scale.setScalar(scale)
+      } else {
+        const currentScale = groupRef.current.scale.x
+        groupRef.current.scale.setScalar(THREE.MathUtils.lerp(currentScale, scale, animation.lerpFactor))
+      }
+      return
+    }
+
+    // Camera-relative modes (visor / yaw)
     const cameraDir = new THREE.Vector3()
     const cameraWorldQuat = new THREE.Quaternion()
 
-    camera.getWorldPosition(cameraPos)
     camera.getWorldDirection(cameraDir)
     camera.getWorldQuaternion(cameraWorldQuat)
 

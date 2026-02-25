@@ -14,6 +14,7 @@ import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
 import { ObjectAnnotations3D } from './components/ObjectAnnotations3D.tsx'
 import { useDetection } from './hooks/useDetection.ts'
 import { DetectionOverlay3D } from './components/DetectionOverlay3D.tsx'
+import { useGazeAnchor } from './hooks/useGazeAnchor.ts'
 
 const xrStore = createXRStore({
   customSessionInit: {
@@ -38,6 +39,9 @@ function XRScene() {
   const inXR = session != null
 
   const voice = useVoiceAssistant({ enabled: inXR })
+
+  // Gaze anchoring — captures where user is looking when they start speaking
+  const gazeAnchor = useGazeAnchor(voice.isListening)
 
   // Camera frame capture + streaming to Garvis server
   const { state: cameraState, captureFrame } = useXRCamera()
@@ -84,9 +88,10 @@ function XRScene() {
   useEffect(() => {
     if (visionText && visionText !== prevVisionRef.current) {
       setVisionVisible(true)
+      gazeAnchor.consumeGaze('research-visible-objects')
     }
     prevVisionRef.current = visionText
-  }, [visionText])
+  }, [visionText, gazeAnchor])
   useEffect(() => {
     if (subwayText && subwayText !== prevSubwayRef.current) {
       setSubwayVisible(true)
@@ -226,12 +231,13 @@ function XRScene() {
         isRawCameraAccess={cameraState.isRawCameraAccess}
       />
 
-      {/* Vision research annotations — spatially anchored to detected objects */}
+      {/* Vision research annotations — gaze-anchored to where user was looking */}
       {visionText && visionVisible && (
         <ObjectAnnotations3D
           contentText={visionText}
           projectionMatrix={cameraState.projectionMatrix}
           isRawCameraAccess={cameraState.isRawCameraAccess}
+          worldPosition={gazeAnchor.toolAnchors['research-visible-objects']}
         />
       )}
 
