@@ -78,6 +78,7 @@ function XRScene() {
   const [sportsVisible, setSportsVisible] = useState(true)
   const [videoVisible, setVideoVisible] = useState(true)
   const [visionVisible, setVisionVisible] = useState(true)
+  const [yoloVisible, setYoloVisible] = useState(true)
 
   // Re-show panels when new data arrives from voice
   const prevSubwayRef = useRef<string | null>(null)
@@ -117,13 +118,22 @@ function XRScene() {
     prevStreamRef.current = streamUrl
   }, [streamUrl])
 
-  const muteAction: WindowAction[] = useMemo(() => [{
-    key: 'mute',
-    icon: voice.isMuted ? 'M' : 'U',
-    variant: voice.isMuted ? 'error' : 'success',
-    active: voice.isMuted,
-    onPress: voice.toggleMute,
-  }], [voice.isMuted, voice.toggleMute])
+  const statusActions: WindowAction[] = useMemo(() => [
+    {
+      key: 'yolo',
+      icon: 'Y',
+      variant: yoloVisible ? 'success' : 'muted',
+      active: yoloVisible,
+      onPress: () => setYoloVisible(v => !v),
+    },
+    {
+      key: 'mute',
+      icon: voice.isMuted ? 'M' : 'U',
+      variant: voice.isMuted ? 'error' : 'success',
+      active: voice.isMuted,
+      onPress: voice.toggleMute,
+    },
+  ], [voice.isMuted, voice.toggleMute, yoloVisible])
 
   return (
     <>
@@ -222,14 +232,16 @@ function XRScene() {
       )}
 
       {/* Live YOLO detection bounding boxes (debug overlay) */}
-      <DetectionOverlay3D
-        detections={detection.detections}
-        imageSize={detection.imageSize}
-        fps={detection.fps}
-        latency={detection.latency}
-        projectionMatrix={cameraState.projectionMatrix}
-        isRawCameraAccess={cameraState.isRawCameraAccess}
-      />
+      {yoloVisible && (
+        <DetectionOverlay3D
+          detections={detection.detections}
+          imageSize={detection.imageSize}
+          fps={detection.fps}
+          latency={detection.latency}
+          projectionMatrix={cameraState.projectionMatrix}
+          isRawCameraAccess={cameraState.isRawCameraAccess}
+        />
+      )}
 
       {/* Vision research annotations — gaze-anchored to where user was looking */}
       {visionText && visionVisible && (
@@ -251,7 +263,7 @@ function XRScene() {
         resizable={false}
         storageKey="voice-indicator"
         showClose={false}
-        actions={muteAction}
+        actions={statusActions}
       >
         <VoiceIndicator3D
           isConnected={voice.isConnected}
