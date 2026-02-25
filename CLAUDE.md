@@ -27,17 +27,20 @@ The integration app that composes capabilities from the other subprojects. Dual-
 
 ### Architecture
 ```
-App.tsx (useVoiceAssistant for XR)
+App.tsx (useVoiceAssistant + useGazeAnchor for XR)
 ├── Browser mode: title + "Enter AR" button (launcher only, no auto-loading)
 └── Canvas > XR
       └── <XRScene />                 (3D — only renders in AR session)
-            ├── <Window> + <ChatWindow3D />        (draggable, left side)
-            ├── <Window> + <VoiceIndicator3D />    (draggable, bottom of FOV)
-            ├── <Window> + <SubwayArrivals3D />    (draggable, voice-triggered, right side)
-            └── <Window> + <CitiBikeStatus3D />    (draggable, voice-triggered)
+            ├── <Window> + <ChatWindow3D />        (draggable, visor-follow, left side)
+            ├── <Window> + <VoiceIndicator3D />    (draggable, visor-follow, bottom of FOV)
+            ├── <Window> + <SubwayArrivals3D />    (draggable, visor-follow, voice-triggered)
+            ├── <Window> + <CitiBikeStatus3D />    (draggable, visor-follow, voice-triggered)
+            └── <ObjectAnnotations3D />            (gaze-anchored, voice-triggered vision research)
 ```
 
 All XR panels are draggable, resizable `Window` components (ported from garvis `Window.tsx`). Users can grab the title bar to reposition any window in 3D space and use the resize handle to scale. Positions persist to localStorage. MCP tool results only appear when triggered by voice through Garvis — the app is voice-first.
+
+Vision research results (`ObjectAnnotations3D`) are **gaze-anchored** — they appear in world space at the point the user was looking at when they started speaking, not as a HUD element. See Gaze Anchoring section below.
 
 ### Voice-Triggered MCP Flow (XR Mode)
 ```
@@ -49,11 +52,38 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 → Client renders: SubwayArrivals3D / CitiBikeStatus3D + ChatWindow3D + audio playback
 ```
 
+### Gaze Anchoring (Vision Research)
+```
+Every frame:
+  useXRHitTest('viewer') → hitPositionRef (3D surface point under gaze)
+  useFrame → cameraGazeRef (fallback: camera + direction * 1.5m)
+
+User speaks:
+  isListening: false → true (detected in useFrame for same-frame hit data)
+  → latestGazeRef = hitPositionRef ?? cameraGazeRef
+
+~2-4 seconds later:
+  onMCPToolResult('research-visible-objects', data)
+  → consumeGaze('research-visible-objects')
+  → toolAnchors['research-visible-objects'] = latestGazeRef
+
+Render:
+  <ObjectAnnotations3D worldPosition={toolAnchors['research-visible-objects']} />
+  → useFrame: lerp to worldPosition, lookAt(camera) billboard
+```
+
+The `useGazeAnchor` hook runs `useXRHitTest('viewer')` every frame (from `@react-three/xr`) to cache the 3D surface point the user is looking at. When speech starts (`isListening` transitions `false → true`), it captures that point. When the vision tool result arrives, `consumeGaze()` copies it into `toolAnchors`. `ObjectAnnotations3D` receives the world position and renders annotation cards at that fixed point, billboarding toward the camera.
+
+If hit testing returns no results (empty space, unsupported device), falls back to camera position + gaze direction * 1.5m. The `hit-test` feature is already in `optionalFeatures` in the XR session config.
+
+Only `research-visible-objects` uses gaze anchoring. Other tool panels (subway, citibike, sports, video) remain in visor (HUD) mode. The `Window` component supports a `worldPosition` prop for future expansion to anchor other panels.
+
 ### Key Files
-- `xr-mcp-app/src/App.tsx` — Top-level: XR store, useVoiceAssistant (XR), voice-only MCP panel layout
+- `xr-mcp-app/src/App.tsx` — Top-level: XR store, useVoiceAssistant (XR), useGazeAnchor, voice-only MCP panel layout
 - `xr-mcp-app/src/hooks/useVoiceAssistant.ts` — XR hook: bridges GarvisClient events → React state (messages, mcpToolResults map keyed by tool name, voice status)
+- `xr-mcp-app/src/hooks/useGazeAnchor.ts` — Continuous WebXR hit testing from viewer + gaze capture on speech onset. Provides `toolAnchors` (world positions keyed by tool name) and `consumeGaze()` to anchor tool results
 - `xr-mcp-app/src/voice/garvis-client.ts` — WebSocket voice client: mic capture, PCM streaming, TTS playback, MCP tool result handling
-- `xr-mcp-app/src/components/XRWindow.tsx` — Draggable, resizable 3D window container (ported from garvis `Window.tsx`). Drag via title bar pointer events, resize via bottom-right handle, camera-follow visor/yaw modes, localStorage persistence via `storageKey` prop
+- `xr-mcp-app/src/components/XRWindow.tsx` — Draggable, resizable 3D window container (ported from garvis `Window.tsx`). Drag via title bar pointer events, resize via bottom-right handle, camera-follow visor/yaw/world-anchored modes, localStorage persistence via `storageKey` prop
 - `xr-mcp-app/src/components/SubwayArrivals3D.tsx` — Parses subway JSON → 3D text: station name, colored line circle, direction arrows, arrival times
 - `xr-mcp-app/src/components/CitiBikeStatus3D.tsx` — Parses citibike JSON → 3D text: station name, classic/ebike counts (color-coded), docks, capacity bar, status badges
 - `xr-mcp-app/src/components/ChatWindow3D.tsx` — 3D chat transcript with status bar, color-coded user/assistant messages
@@ -63,7 +93,8 @@ User speaks → Mic (16kHz PCM) → WebSocket → Garvis server (port 8000)
 
 ### Design Decisions
 - **No XRDomOverlay**: Quest 3 silently ignores `dom-overlay` (it's a handheld AR feature). All XR UI must be Three.js 3D objects.
-- **Draggable windows**: `Window` component (ported from garvis `Window.tsx`) supports drag (title bar pointer events with `setPointerCapture`), resize (bottom-right handle, distance-based scaling 0.5x–2.0x), close button, and localStorage persistence. Camera-follow via `useFrame()` + `lerp`/`slerp` smoothing with visor (camera-locked HUD) and yaw (world-horizontal) modes. During drag, position updates instantly; when idle, lerps smoothly (0.15 factor).
+- **Draggable windows**: `Window` component (ported from garvis `Window.tsx`) supports drag (title bar pointer events with `setPointerCapture`), resize (bottom-right handle, distance-based scaling 0.5x–2.0x), close button, and localStorage persistence. Three positioning modes via `useFrame()` + `lerp`/`slerp` smoothing: visor (camera-locked HUD), yaw (world-horizontal), and world-anchored (`worldPosition` prop — fixed in world space, billboard toward camera). During drag, position updates instantly; when idle, lerps smoothly (0.15 factor).
+- **Gaze anchoring**: `useGazeAnchor` hook captures the user's gaze position at speech onset using continuous WebXR hit testing (`useXRHitTest('viewer')`). The position is captured in `useFrame` (not `useEffect`) to use same-frame hit data. Falls back to camera direction * 1.5m when no surface is detected. Currently only used for `research-visible-objects`; other panels stay in visor mode.
 - **Multi-tool result state**: `useVoiceAssistant` stores `mcpToolResults` as a `Record<string, MCPToolResult>` keyed by tool name, so multiple MCP panels (subway, citibike, etc.) can coexist simultaneously. Each panel auto-shows when new data arrives and can be independently closed.
 - **Data-driven 3D rendering**: Instead of embedding HTML iframes in XR, we parse the MCP tool result `content[0].text` JSON and render it as `<Text>` and `<mesh>` primitives. This is pure WebGL and works reliably on Quest 3.
 - **Design tokens from Garvis**: `design-system.ts` inlines a minimal subset of `garvis/xr-client/src/design-system/tokens.ts` and `primitives.ts` to avoid cross-project imports.
