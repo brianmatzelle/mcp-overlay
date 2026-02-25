@@ -22,6 +22,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/crackstreams-mcp/, '/mcp'),
       },
+      '/splat-mcp': {
+        target: 'http://localhost:3005',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/splat-mcp/, '/mcp'),
+      },
+      '/splat-artifacts': {
+        target: 'http://localhost:3005',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/splat-artifacts/, '/artifacts'),
+      },
       '/proxy': {
         target: 'http://localhost:3003',
         changeOrigin: true,

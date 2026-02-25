@@ -12,11 +12,12 @@ The subprojects below are building blocks toward this unified goal, each contrib
 
 ## Repository Overview
 
-Monorepo containing six subprojects, each with its own CLAUDE.md for project-specific details:
+Monorepo containing seven subprojects, each with its own CLAUDE.md for project-specific details:
 
 - **`xr-mcp-app/`** — **[XR + MCP Integration]** The unified app. Renders MCP tool results as native 3D overlays in WebXR (Quest 3 AR), triggered exclusively by Garvis voice commands. Browser mode is a simple launcher (title + Enter AR button). React + Three.js + @react-three/xr frontend, voice connection to Garvis server.
 - **`garvis/`** — **[XR + Voice + Detection]** XR voice assistant for Meta Quest 3 / WebXR. Real-time bidirectional audio (Deepgram STT → Claude LLM → Eleven Labs TTS) over WebSocket, with YOLOv8 object detection and DeepFace face detection rendered as AR overlays. Python FastAPI + FastMCP backend, React + Three.js + WebXR frontend.
 - **`mcp-app-sandbox/`** — **[MCP App UI Rendering]** Browser-based MCP server interaction tool. Connect to any MCP server, execute tools, view MCP App UIs in sandboxed iframes, chat with Claude-powered agent. Also hosts MCP servers: `mta-subway/` (port 3001), `citibike/` (port 3002), `crackstreams/` (port 3003). React + Vite frontend, Express backend.
+- **`splat-server/`** — **[3D Generation + MCP Tool]** FastMCP server providing `generate-splat-from-image` tool. Converts images into 3D Gaussian splat models via LGM (Large Gaussian Model). Returns PLY artifact URL for client-side rendering with @sparkjsdev/spark. Mock backend for testing, LGM backend for real inference (RTX 4070+ GPU). Python FastAPI + FastMCP backend (port 3005).
 - **`vision-research-server/`** — **[Vision + MCP Tool]** FastMCP server providing `research-visible-objects` tool. YOLOv8 object detection + Claude Vision enrichment in parallel. Returns JSON with detection coords, class, identification, and enrichment. Python FastAPI + FastMCP backend (port 3004).
 - **`vision-explorer2/`** — **[Standalone Vision App]** Real-time object detection web app. Client-side YOLO v8 inference via ONNX Runtime Web, with Claude Vision enrichment over WebSocket. React + Zustand + Tailwind frontend (pnpm), FastAPI backend. Standalone — not integrated into `run.sh`.
 - **`manim-mcp/`** — **[Tool Patterns + Streaming]** AI math tutoring platform. Renders Manim animations from math expressions via MCP tools, streams Claude responses via SSE. Python FastAPI + FastMCP backend, Next.js 15 frontend, AWS infrastructure.
@@ -35,6 +36,7 @@ App.tsx (useVoiceAssistant + useGazeAnchor for XR)
             ├── <Window> + <VoiceIndicator3D />    (draggable, visor-follow, bottom of FOV)
             ├── <Window> + <SubwayArrivals3D />    (draggable, visor-follow, voice-triggered)
             ├── <Window> + <CitiBikeStatus3D />    (draggable, visor-follow, voice-triggered)
+            ├── <GaussianSplat3D />                 (gaze-anchored, voice-triggered splat generation)
             └── <ObjectAnnotations3D />            (gaze-anchored, voice-triggered vision research)
 ```
 
@@ -163,6 +165,13 @@ cd citibike && npm run dev     # Citibike MCP server (port 3002)
 cd crackstreams && uv run uvicorn main:app --host 0.0.0.0 --port 3003 --reload  # CrackStreams MCP server
 ```
 
+### Splat Generation Server (from `splat-server/`)
+```bash
+uv sync && uv run uvicorn server:app --host 0.0.0.0 --port 3005 --reload  # Mock backend (default)
+./setup.sh                     # One-time: install LGM + CUDA kernels for real inference
+# Then set SPLAT_INFERENCE_BACKEND=lgm in .env for GPU inference
+```
+
 ### Vision Research Server (from `vision-research-server/`)
 ```bash
 uv sync && uv run uvicorn server:app --host 0.0.0.0 --port 3004 --reload
@@ -177,7 +186,7 @@ cd backend && pip install -r requirements.txt && uvicorn main:app --reload --por
 
 ## Cross-Project Conventions
 
-**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies via Vite config: `/mcp` → MTA (3001), `/citibike-mcp` → Citibike (3002), `/crackstreams-mcp` → CrackStreams (3003), `/proxy` → CrackStreams HLS proxy (3003), `/ws/voice` + `/detect` → Garvis (8000).
+**Two-process architecture:** Most projects run a backend (Python FastAPI or Express) and a frontend (React/Next.js) separately. Frontend dev servers proxy API/WebSocket requests to the backend. `xr-mcp-app` proxies via Vite config: `/mcp` → MTA (3001), `/citibike-mcp` → Citibike (3002), `/crackstreams-mcp` → CrackStreams (3003), `/splat-mcp` + `/splat-artifacts` → Splat Generation (3005), `/proxy` → CrackStreams HLS proxy (3003), `/ws/voice` + `/detect` → Garvis (8000).
 
 **Port allocations:**
 | Port | Service |
@@ -186,6 +195,7 @@ cd backend && pip install -r requirements.txt && uvicorn main:app --reload --por
 | 3002 | Citibike MCP server |
 | 3003 | CrackStreams MCP server |
 | 3004 | Vision Research MCP server |
+| 3005 | Splat Generation MCP server |
 | 5173 | Garvis xr-client / vision-explorer2 frontend |
 | 5174 | xr-mcp-app (HTTPS) |
 | 5180 | mcp-app-sandbox frontend |

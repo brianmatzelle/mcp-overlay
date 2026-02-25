@@ -1,0 +1,29 @@
+[project]
+name = "splat-server"
+version = "0.1.0"
+description = "Gaussian Splat Generation MCP Server — image-to-3D via LGM"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "fastapi>=0.127.1",
+    "fastmcp>=2.14.1",
+    "uvicorn>=0.40.0",
+    "pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.2.1",
+]
+
+[project.optional-dependencies]
+lgm = [
+    "torch>=2.1.0",
+    "torchvision>=0.16.0",
+    "safetensors>=0.4.0",
+    "transformers>=4.36.0",
+    "diffusers>=0.25.0",
+    "accelerate>=0.25.0",
+    "rembg[gpu,cli]>=2.0.50",
+    "kiui>=0.2.3",
+    "plyfile>=1.0.0",
+    "einops>=0.7.0",
+    "roma>=0.2.0",
+]

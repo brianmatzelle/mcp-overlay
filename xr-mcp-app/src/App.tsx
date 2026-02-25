@@ -12,6 +12,7 @@ import { VideoPlayer3D } from './components/VideoPlayer3D.tsx'
 import { ChatWindow3D } from './components/ChatWindow3D.tsx'
 import { VoiceIndicator3D } from './components/VoiceIndicator3D.tsx'
 import { ObjectAnnotations3D } from './components/ObjectAnnotations3D.tsx'
+import { GaussianSplat3D } from './components/GaussianSplat3D.tsx'
 import { useDetection } from './hooks/useDetection.ts'
 import { DetectionOverlay3D } from './components/DetectionOverlay3D.tsx'
 import { useGazeAnchor } from './hooks/useGazeAnchor.ts'
@@ -59,6 +60,7 @@ function XRScene() {
   const searchText = voice.mcpToolResults['search-streams']?.content?.[0]?.text ?? null
   const streamData = voice.mcpToolResults['show-stream']?.content?.[0]?.text ?? null
   const visionText = voice.mcpToolResults['research-visible-objects']?.content?.[0]?.text ?? null
+  const splatText = voice.mcpToolResults['generate-splat-from-image']?.content?.[0]?.text ?? null
 
   // Parse stream URL from show-stream result
   const streamUrl = useMemo(() => {
@@ -78,6 +80,7 @@ function XRScene() {
   const [sportsVisible, setSportsVisible] = useState(true)
   const [videoVisible, setVideoVisible] = useState(true)
   const [visionVisible, setVisionVisible] = useState(true)
+  const [splatVisible, setSplatVisible] = useState(true)
   const [yoloVisible, setYoloVisible] = useState(true)
 
   // Re-show panels when new data arrives from voice
@@ -85,6 +88,7 @@ function XRScene() {
   const prevCitibikeRef = useRef<string | null>(null)
   const prevSearchRef = useRef<string | null>(null)
   const prevVisionRef = useRef<string | null>(null)
+  const prevSplatRef = useRef<string | null>(null)
   const prevStreamRef = useRef<string | null>(null)
   useEffect(() => {
     if (visionText && visionText !== prevVisionRef.current) {
@@ -111,6 +115,13 @@ function XRScene() {
     }
     prevSearchRef.current = searchText
   }, [searchText])
+  useEffect(() => {
+    if (splatText && splatText !== prevSplatRef.current) {
+      setSplatVisible(true)
+      gazeAnchor.consumeGaze('generate-splat-from-image')
+    }
+    prevSplatRef.current = splatText
+  }, [splatText, gazeAnchor])
   useEffect(() => {
     if (streamUrl && streamUrl !== prevStreamRef.current) {
       setVideoVisible(true)
@@ -250,6 +261,14 @@ function XRScene() {
           projectionMatrix={cameraState.projectionMatrix}
           isRawCameraAccess={cameraState.isRawCameraAccess}
           worldPosition={gazeAnchor.toolAnchors['research-visible-objects']}
+        />
+      )}
+
+      {/* Gaussian splat — gaze-anchored 3D model from generate-splat-from-image */}
+      {splatText && splatVisible && (
+        <GaussianSplat3D
+          contentText={splatText}
+          worldPosition={gazeAnchor.toolAnchors['generate-splat-from-image']}
         />
       )}
 
