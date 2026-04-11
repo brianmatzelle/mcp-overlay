@@ -212,6 +212,13 @@ cd backend && pip install -r requirements.txt && uvicorn main:app --reload --por
 | mcp-app-sandbox | — (none configured) | — (none configured) |
 | vision-research-server | — | — |
 
+## Coding Conventions
+
+- **TypeScript/JavaScript**: 2-space indentation; follow existing React/Three.js patterns in each app.
+- **Python**: Follow existing `ruff`/`black` usage where configured. No root-level formatter — formatting tools are per-project.
+- **Naming**: Descriptive component names matching exports (`SubwayArrivals3D.tsx` exports `SubwayArrivals3D`).
+- **Commit messages**: Short, descriptive, non-conventional style (e.g., "added research tool and MCP App that results from it", "stable"). No Conventional Commits prefixes.
+
 ## Environment Variables
 
 Each project requires its own `.env` file (gitignored). Key vars:
