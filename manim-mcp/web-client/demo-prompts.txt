@@ -1,0 +1,13 @@
+# Demo Prompts
+
+Can you visualize the change in circumference for me? Here's the anecdote:
+"""
+ Growing up, my family would eat dinner together, at the dinner
+     table, every night. This is where I learned the most, specifically in regards
+     to math. I'll never forget when my dad taught us about why in a track race, the
+     outside runner starts ahead of the inside runner. I argued and struggled with
+     my dad, which was the best way to learn and then visualize the change in
+     circumference as diameter changes sizes.
+"""
+
+Can you actually draw the two circles, mimicking the track lanes, then cut each circle and compare their lengths?

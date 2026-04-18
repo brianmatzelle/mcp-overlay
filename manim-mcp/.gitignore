@@ -1,0 +1,7 @@
+.venv/
+.env*
+manim/
+!.env.local.example
+.playwright-mcp/
+DEPLOYMENT_PROGRESS.md
+.DS_Store

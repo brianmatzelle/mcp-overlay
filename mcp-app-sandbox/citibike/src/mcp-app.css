@@ -1,0 +1,224 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.citibike-widget {
+  background: #1a1a1a;
+  color: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  max-width: 400px;
+  min-width: 280px;
+}
+
+.loading {
+  color: #999;
+  font-size: 14px;
+  padding: 24px 0;
+  text-align: center;
+}
+
+/* Header ------------------------------------------------- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #0053D6;
+}
+
+.header-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.station-name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Sections ----------------------------------------------- */
+.section {
+  margin-bottom: 14px;
+}
+
+.section-label {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.bike-counts {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.bike-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.count-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.count-label {
+  color: #aaa;
+  font-size: 13px;
+}
+
+.ebike-icon {
+  font-size: 13px;
+}
+
+/* Availability colors */
+.count-green {
+  color: #4ade80;
+}
+
+.count-yellow {
+  color: #fbbf24;
+}
+
+.count-red {
+  color: #f87171;
+}
+
+/* Dock count --------------------------------------------- */
+.dock-count {
+  font-size: 15px;
+}
+
+.dock-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.dock-total {
+  color: #aaa;
+  font-size: 14px;
+}
+
+/* Capacity bar ------------------------------------------- */
+.capacity-bar-container {
+  margin-bottom: 14px;
+}
+
+.capacity-bar {
+  height: 10px;
+  background: #333;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.capacity-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: #0053D6;
+  transition: width 0.3s ease;
+}
+
+.capacity-label {
+  font-size: 12px;
+  color: #999;
+  text-align: right;
+}
+
+/* Status badges ------------------------------------------ */
+.status-badges {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.badge-active {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.badge-inactive {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+/* Footer ------------------------------------------------- */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #666;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+}
+
+.refresh-btn {
+  margin-left: auto;
+  background: #333;
+  color: #ccc;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background 0.15s;
+}
+
+.refresh-btn:hover {
+  background: #444;
+}
+
+.refresh-btn:active {
+  background: #555;
+}
+
+/* Error state -------------------------------------------- */
+.error {
+  color: #f87171;
+  font-size: 14px;
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* Animations --------------------------------------------- */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

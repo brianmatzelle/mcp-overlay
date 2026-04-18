@@ -1,0 +1,225 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "katex/dist/katex.min.css";
+@import "tailwindcss";
+
+:root {
+  /* Theme colors - dynamically loaded from config.json via ThemeProvider */
+  /* Default fallback values */
+  --background: #0F1014;
+  --surface: #1A1C20;
+  --surface-alt: #2A2D35;
+  --border: #1A1C20;
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
+  --text-primary: #ECDFCC;
+  --text-secondary: #C4B8A8;
+  --text-muted: #6B7280;
+  --success: #4ade80;
+  --error: #f87171;
+  --user-bubble: #3B82F6;
+  --assistant-bubble: #1A1C20;
+
+  /* Legacy aliases for compatibility */
+  --background-secondary: var(--surface);
+  --accent: var(--primary);
+  --foreground: var(--text-primary);
+  --foreground-muted: var(--text-secondary);
+  --input: var(--surface);
+  --primary-foreground: var(--text-primary);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--background);
+  --muted-foreground: var(--text-secondary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+
+  /* Destructive colors */
+  --destructive: #DC2626;
+  --destructive-foreground: #FECACA;
+
+  /* Message colors */
+  --user-message-bg: var(--user-bubble);
+  --user-message-fg: var(--text-primary);
+  --assistant-message-bg: var(--assistant-bubble);
+  --assistant-message-fg: var(--text-primary);
+
+  /* Syntax highlighting for markdown input */
+  --syntax-marker: #6B7280;
+  --syntax-bold: #F59E0B;
+  --syntax-italic: #8B5CF6;
+  --syntax-code: #10B981;
+  --syntax-heading: #3B82F6;
+  --syntax-link: #06B6D4;
+  --syntax-link-url: #6B7280;
+  --syntax-emoticon: #FBBF24;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-background-secondary: var(--background-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-user-message-bg: var(--user-message-bg);
+  --color-user-message-fg: var(--user-message-fg);
+  --color-assistant-message-bg: var(--assistant-message-bg);
+  --color-assistant-message-fg: var(--assistant-message-fg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Markdown input selection fix */
+.markdown-input-textarea::selection {
+  background-color: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+/* Bounce dot loading animation */
+@keyframes bounce-dot {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-12px);
+  }
+}
+
+.bounce-dot {
+  animation: bounce-dot 1.4s ease-in-out infinite;
+}
+.bounce-dot:nth-child(1) { animation-delay: 0s; }
+.bounce-dot:nth-child(2) { animation-delay: 0.16s; }
+.bounce-dot:nth-child(3) { animation-delay: 0.32s; }
+
+/* Lesson enter animation */
+@keyframes lesson-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.lesson-enter {
+  animation: lesson-enter 0.4s ease-out forwards;
+}
+
+/* Prompt card hover glow */
+.prompt-card {
+  transition: all 0.2s ease;
+}
+.prompt-card:hover {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 15%, transparent),
+              0 4px 12px rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Drawer transitions */
+.drawer-transition {
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Drawer backdrop */
+.drawer-backdrop {
+  transition: opacity 0.3s ease;
+}
+
+/* History popover */
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popover-enter {
+  animation: popover-enter 0.2s ease-out forwards;
+}
+
+/* Idle input pulse */
+@keyframes input-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+}
+
+.idle-input-glow:focus-within {
+  animation: input-glow 2s ease-in-out infinite;
+}
+
+/* Streaming text fade-in animation */
+@keyframes text-fade-in {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+.streaming-text-enter {
+  animation: text-fade-in 0.3s ease-out forwards;
+}
+
+/* Force AppRenderer iframe to fill the lesson stage */
+.lesson-stage iframe,
+.lesson-stage > div,
+.lesson-stage > div > div,
+.lesson-stage > div > iframe {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  border: none !important;
+}

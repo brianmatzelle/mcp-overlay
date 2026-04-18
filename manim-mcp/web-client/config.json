@@ -1,0 +1,65 @@
+{
+  "app": {
+    "name": "Math Tutor",
+    "shortName": "Math Tutor",
+    "description": "An AI-powered math tutor that explains algebra concepts with Manim visualizations",
+    "tagline": "Learn algebra through interactive visualizations. Ask questions and see beautiful animated explanations powered by Manim.",
+    "taglineShort": "Math made visual",
+    "icon": "",
+    "accentIcon": ""
+  },
+  "theme": {
+    "colors": {
+      "background": "#0F1014",
+      "surface": "#1A1C20",
+      "surfaceAlt": "#2A2D35",
+      "border": "#1A1C20",
+      "primary": "#3B82F6",
+      "primaryHover": "#2563EB",
+      "textPrimary": "#ECDFCC",
+      "textSecondary": "#C4B8A8",
+      "textMuted": "#6B7280",
+      "success": "#4ade80",
+      "error": "#f87171",
+      "userBubble": "#3B82F6",
+      "assistantBubble": "#1A1C20"
+    }
+  },
+  "mcp": {
+    "servers": {
+      "primary": {
+        "id": "math-tutor",
+        "name": "Math Tutor Server",
+        "url": "https://api.startingsoftware.com",
+        "endpoint": "/mcp/math"
+      }
+    },
+    "client": {
+      "name": "math-tutor-web-client",
+      "version": "1.0.0"
+    },
+    "fallbackTools": []
+  },
+  "ai": {
+    "model": "claude-opus-4-6",
+    "maxTokens": 4000,
+    "maxToolCallIterations": 100,
+    "systemPrompt": "You are a patient, encouraging math tutor. Your goal is to help students understand mathematical concepts deeply, not just give answers.\n\nWhen students ask questions:\n1. Think about what explanation and visualization would help most\n2. Write a clear explanation with LaTeX math notation\n3. Write a Manim Scene class to illustrate the concept\n4. Call render_manim_lesson with the code, explanation, title, and key concepts — all in ONE tool call\n5. Encourage understanding with follow-up questions\n\nYour primary tool is:\n- render_manim_lesson: Renders a Manim animation AND displays it as an interactive lesson with a video player and KaTeX explanation side by side. Pass a complete Scene class as 'code', a LaTeX-rich explanation, a title, and key concept tags. This renders and displays in a single call.\n\nWorkflow:\n1. Student asks a question\n2. You write an explanation using LaTeX ($...$ inline, $$...$$ display)\n3. You write a complete Manim Scene class\n4. You call render_manim_lesson(code='...', title='...', explanation='...', key_concepts=['...'])\n5. The lesson viewer displays video + explanation side by side\n\nFallback tools (for the web client):\n- render_custom_scene + show_video: Use these only if render_manim_lesson is unavailable.\n\nWhen writing the explanation parameter, use LaTeX notation freely:\n- Inline math: $expression$ (e.g., $f(x) = mx + b$)\n- Display math: $$expression$$ (e.g., $$\\int_0^1 x^2 \\, dx = \\frac{1}{3}$$)\n- Use newlines to separate paragraphs\n\nBe encouraging, patient, and make math visual and fun!"
+  },
+  "ui": {
+    "quickPrompts": [
+      "How does the radio work? What's the difference between AM and FM?",
+      "In track, why does the outside runner start ahead of the inside runner?",
+      "How does noise cancellation work in headphones?",
+      "Why does compound interest grow your money so fast?",
+      "How does GPS figure out exactly where you are?"
+    ],
+    "welcomeTitle": "What do you want to learn?",
+    "welcomeSubtitle": "Ask a question and get a visual lesson with animations",
+    "inputPlaceholder": "Ask me any math question...",
+    "drawerInputPlaceholder": "Ask a follow-up...",
+    "assistantAvatar": "",
+    "userAvatar": ""
+  }
+}
+
